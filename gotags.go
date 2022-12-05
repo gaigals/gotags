@@ -1,204 +1,226 @@
 package gotags
 
 import (
-    "errors"
-    "fmt"
-    "reflect"
-    "strings"
+	"errors"
+	"fmt"
+	"reflect"
+	"strings"
 )
 
 const (
-    defaultSeparator = ";"
-    defaultEquals    = ":"
+	defaultSeparator = ";"
+	defaultEquals    = ":"
 )
 
 type Validator func(value string) error
 type Processor func(fieldData FieldData) error
 
 type Key struct {
-    Name          string
-    IsBool        bool
-    IsRequired    bool
-    KindsRequired []reflect.Kind // Optional
-    Validator                    // Optional
+	Name          string
+	IsBool        bool
+	IsRequired    bool
+	KindsRequired []reflect.Kind // Optional
+	Validator                    // Optional
 }
 
 type TagSettings struct {
-    Name      string
-    Separator string
-    Equals    string
-    Keys      []Key
-    Processor // Optional
+	Name      string
+	Separator string
+	Equals    string
+	Keys      []Key
+	Processor // Optional
 }
 
 func NewKey(name string, isBool, isRequired bool, validator Validator, kindsRequired ...reflect.Kind) Key {
-    return Key{name, isBool, isRequired, kindsRequired, validator}
+	return Key{name, isBool, isRequired, kindsRequired, validator}
 }
 
 func NewTagSettings(name, separator, equals string, processor Processor, keys ...Key) TagSettings {
-    return TagSettings{name, separator, equals, keys, processor}
+	return TagSettings{name, separator, equals, keys, processor}
 }
 
 func NewTagSettingsDefault(name string, processor Processor, keys ...Key) TagSettings {
-    return NewTagSettings(name, defaultSeparator, defaultEquals, processor, keys...)
+	return NewTagSettings(name, defaultSeparator, defaultEquals, processor, keys...)
 }
 
 func (tg *TagSettings) FieldData(data any) ([]FieldData, error) {
-    structure, err := tg.unpackPtr(data)
-    if err != nil {
-        return nil, err
-    }
+	structure, err := tg.unpackPtr(data)
+	if err != nil {
+		return nil, err
+	}
 
-    fieldData, err := tg.unpackStruct(structure)
-    if err != nil {
-        return nil, err
-    }
+	fieldData, err := tg.unpackStruct(structure)
+	if err != nil {
+		return nil, err
+	}
 
-    return fieldData, nil
+	err = tg.runProcessor(fieldData)
+	if err != nil {
+		return nil, err
+	}
+
+	return fieldData, nil
 }
 
-func (tg *TagSettings) unpackPtr(data any) (any, error) {
-    valueOf := reflect.ValueOf(data)
+func (tg *TagSettings) runProcessor(fieldData []FieldData) error {
+	if tg.Processor == nil {
+		return nil
+	}
 
-    if valueOf.Kind() != reflect.Ptr || valueOf.IsNil() {
-        return nil, errors.New("passed value must be valid pointer")
-    }
+	for _, field := range fieldData {
+		err := tg.Processor(field)
+		if err != nil {
+			return err
+		}
+	}
 
-    return valueOf.Elem().Interface(), nil
+	return nil
 }
 
-func (tg *TagSettings) unpackStruct(data any) ([]FieldData, error) {
-    typeOf := reflect.TypeOf(data)
+func (tg *TagSettings) unpackPtr(data any) (reflect.Value, error) {
+	valueOf := reflect.ValueOf(data)
 
-    if typeOf.Kind() != reflect.Struct {
-        return nil, errors.New("passed value must be pointer of struct")
-    }
+	if valueOf.Kind() != reflect.Ptr || valueOf.IsNil() {
+		return reflect.Value{}, errors.New("passed value must be valid pointer")
+	}
 
-    nrOfFields := typeOf.NumField()
-    if nrOfFields == 0 {
-        return nil, nil
-    }
-
-    return tg.parseFields(data)
+	return valueOf.Elem(), nil
 }
 
-func (tg *TagSettings) parseFields(data any) ([]FieldData, error) {
-    typeOf := reflect.TypeOf(data)
-    valueOf := reflect.ValueOf(data)
+func (tg *TagSettings) unpackStruct(valueOf reflect.Value) ([]FieldData, error) {
+	typeOf := reflect.TypeOf(valueOf)
 
-    fields := make([]FieldData, 0)
+	if typeOf.Kind() != reflect.Struct {
+		return nil, errors.New("passed value must be pointer of struct")
+	}
 
-    for i := 0; i < typeOf.NumField(); i++ {
-        structField := typeOf.Field(i)
-        fieldTypeOf := structField.Type
-        fieldName := structField.Name
-        kind := fieldTypeOf.Kind()
-        self := valueOf.Field(i).Interface()
+	nrOfFields := typeOf.NumField()
+	if nrOfFields == 0 {
+		return nil, nil
+	}
 
-        tags, err := tg.readTagValue(structField.Tag)
-        if err != nil {
-            return nil, err
-        }
-        if len(tags) == 0 {
-            continue
-        }
+	return tg.parseFields(valueOf)
+}
 
-        tagData, err := tg.convertAsTagData(tags)
-        if err != nil {
-            return nil, err
-        }
+func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]FieldData, error) {
+	typeOf := reflect.TypeOf(valueOf.Interface())
 
-        err = tg.validateTagData(tagData)
-        if err != nil {
-            return nil, err
-        }
+	fields := make([]FieldData, 0)
 
-        field := FieldData{self, fieldName, kind, tagData}
+	for i := 0; i < typeOf.NumField(); i++ {
+		structField := typeOf.Field(i)
+		if !structField.IsExported() || structField.Tag == "" {
+			continue
+		}
 
-        err = tg.hasRequiredKeys(field)
-        if err != nil {
-            return nil, err
-        }
+		tags, err := tg.readTagValue(structField.Tag)
+		if err != nil {
+			return nil, err
+		}
+		if len(tags) == 0 {
+			continue
+		}
 
-        fields = append(fields, field)
-    }
+		tagData, err := tg.convertAsTagData(tags)
+		if err != nil {
+			return nil, err
+		}
 
-    return fields, nil
+		err = tg.validateTagData(tagData)
+		if err != nil {
+			return nil, err
+		}
+
+		fieldTypeOf := structField.Type
+		fieldName := structField.Name
+		kind := fieldTypeOf.Kind()
+
+		field := FieldData{valueOf.Field(i), fieldName, kind, tagData}
+
+		err = tg.hasRequiredKeys(field)
+		if err != nil {
+			return nil, err
+		}
+
+		fields = append(fields, field)
+	}
+
+	return fields, nil
 }
 
 func (tg *TagSettings) readTagValue(tag reflect.StructTag) ([]string, error) {
-    tagString, ok := tag.Lookup(tg.Name)
-    if !ok { // No pkg tag key, ignore this struct field.
-        return nil, nil
-    }
+	tagString, ok := tag.Lookup(tg.Name)
+	if !ok { // No pkg tag key, ignore this struct field.
+		return nil, nil
+	}
 
-    return strings.Split(tagString, tg.Separator), nil
+	return strings.Split(tagString, tg.Separator), nil
 }
 
 func (tg *TagSettings) convertAsTagData(tags []string) ([]TagData, error) {
-    tagsData := make([]TagData, 0)
+	tagsData := make([]TagData, 0)
 
-    for _, v := range tags {
-        tagData, err := newTagData(v, tg.Equals)
-        if err != nil {
-            return nil, err
-        }
+	for _, v := range tags {
+		tagData, err := newTagData(v, tg.Equals)
+		if err != nil {
+			return nil, err
+		}
 
-        tagsData = append(tagsData, *tagData)
-    }
+		tagsData = append(tagsData, *tagData)
+	}
 
-    return tagsData, nil
+	return tagsData, nil
 }
 
 func (tg *TagSettings) validateTagData(tagData []TagData) error {
-    for _, tag := range tagData {
-        key, err := tg.findMatchingKey(tag.Key)
-        if err != nil {
-            return err
-        }
+	for _, tag := range tagData {
+		key, err := tg.findMatchingKey(tag.Key)
+		if err != nil {
+			return err
+		}
 
-        err = tag.validate(key)
-        if err != nil {
-            return err
-        }
-    }
+		err = tag.validate(key)
+		if err != nil {
+			return err
+		}
+	}
 
-    return nil
+	return nil
 }
 
 func (tg *TagSettings) findMatchingKey(key string) (*Key, error) {
-    for _, v := range tg.Keys {
-        if key == v.Name {
-            return &v, nil
-        }
-    }
+	for _, v := range tg.Keys {
+		if key == v.Name {
+			return &v, nil
+		}
+	}
 
-    return nil, fmt.Errorf("tag '%s' does not exist", key)
+	return nil, fmt.Errorf("tag '%s' does not exist", key)
 }
 
 func (tg *TagSettings) hasRequiredKeys(fieldData FieldData) error {
-    required := tg.requiredKeys()
+	required := tg.requiredKeys()
 
-    for _, v := range required {
-        if fieldData.HasKey(v) {
-            continue
-        }
+	for _, v := range required {
+		if fieldData.HasKey(v) {
+			continue
+		}
 
-        return fmt.Errorf("%s: key '%s' is required but not found",
-            fieldData.Name, v)
-    }
+		return fmt.Errorf("%s: key '%s' is required but not found",
+			fieldData.Name, v)
+	}
 
-    return nil
+	return nil
 }
 
 func (tg *TagSettings) requiredKeys() []string {
-    required := make([]string, 0)
+	required := make([]string, 0)
 
-    for _, v := range tg.Keys {
-        if v.IsRequired {
-            required = append(required, v.Name)
-        }
-    }
+	for _, v := range tg.Keys {
+		if v.IsRequired {
+			required = append(required, v.Name)
+		}
+	}
 
-    return required
+	return required
 }
