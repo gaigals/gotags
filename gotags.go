@@ -26,7 +26,9 @@ func NewKey(name string, isBool, isRequired bool, validator Validator, allowedKi
 // processor - processor which will process each tag field. (optional)
 // keys - enabled keys.
 func NewTagSettings(name, separator, equals string, processor Processor, keys ...Key) TagSettings {
-	return TagSettings{name, separator, equals, keys, processor}
+	tg := TagSettings{name, separator, equals, keys, processor, nil}
+	tg.keysRequired = tg.requiredKeys()
+	return tg
 }
 
 // NewTagSettingsDefault creates new Tag with default separator(;) and equals(:).

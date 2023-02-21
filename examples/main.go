@@ -38,7 +38,7 @@ type MyData struct {
 }
 
 // Will return error on TagSettings.ParseStruct() if fails.
-func tagProcessor(field gotags.FieldData) error {
+func tagProcessor(field gotags.Field) error {
 	// Do some custom stuff for each field if required.
 
 	// value := field.Value.Interface()

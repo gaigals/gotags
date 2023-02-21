@@ -5,17 +5,17 @@ import (
 	"reflect"
 )
 
-// FieldData contains all information about struct field.
-type FieldData struct {
+// Field contains all information about struct field.
+type Field struct {
 	Value   reflect.Value // Pointer to field
 	Name    string        // Field name
 	Kind    reflect.Kind  // Field type/kind
-	TagData []TagData     // Field tag data
+	TagData []Tag         // Field tag data
 }
 
 // KeyValueBool acquires tag key value.
 // Returns ok(true) if key exists.
-func (fd FieldData) KeyValueBool(key string) (value string, ok bool) {
+func (fd Field) KeyValueBool(key string) (value string, ok bool) {
 	for _, tag := range fd.TagData {
 		if tag.Key == key {
 			return tag.Value, true
@@ -26,42 +26,40 @@ func (fd FieldData) KeyValueBool(key string) (value string, ok bool) {
 }
 
 // KeyValue returns tag key value.
-func (fd FieldData) KeyValue(key string) string {
+func (fd Field) KeyValue(key string) string {
 	value, _ := fd.KeyValueBool(key)
 	return value
 }
 
 // HasKey checks if field contains tag key.
-func (fd FieldData) HasKey(key string) bool {
+func (fd Field) HasKey(key string) bool {
 	_, ok := fd.KeyValueBool(key)
 	return ok
 }
 
 // HasType checks if field has passed type.
-func (fd FieldData) HasType(targetType reflect.Type) bool {
+func (fd Field) HasType(targetType reflect.Type) bool {
 	return reflect.TypeOf(fd.Value.Interface()) == targetType
 }
 
 // SetValue sets new value for field.
-func (fd FieldData) SetValue(value any) error {
-	dataValueOf := reflect.ValueOf(value)
-
+func (fd Field) SetValue(value any) error {
 	// Safety checks ...
 	if !fd.Value.CanSet() {
 		return fmt.Errorf("%s: cannot be changed", fd.Name)
 	}
 	if !fd.HasType(reflect.TypeOf(value)) {
-		return fmt.Errorf("%s(%s): cannot apply value of type %s\n",
-			reflect.TypeOf(fd.Value.Interface()), reflect.TypeOf(value))
+		return fmt.Errorf("%s(%s): cannot apply value of type %v\n",
+			reflect.TypeOf(fd.Value.Interface()), reflect.TypeOf(value), value)
 	}
 
-	fd.Value.Set(dataValueOf)
+	fd.Value.Set(reflect.ValueOf(value))
 	return nil
 }
 
 // TagDataFormatted formats all field keys and values in provided format.
 // For example, format, `%s=%s` will result in `key=value`.
-func (fd FieldData) TagDataFormatted(format string) []string {
+func (fd Field) TagDataFormatted(format string) []string {
 	slice := make([]string, 0)
 
 	for _, v := range fd.TagData {
@@ -69,4 +67,14 @@ func (fd FieldData) TagDataFormatted(format string) []string {
 	}
 
 	return slice
+}
+
+func (fd Field) TagMap() map[string]string {
+	tagMap := make(map[string]string)
+
+	for _, v := range fd.TagData {
+		tagMap[v.Key] = v.Value
+	}
+
+	return tagMap
 }
