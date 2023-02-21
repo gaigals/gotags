@@ -11,7 +11,7 @@ type Tag struct {
 	Value string
 }
 
-func newTagData(tag, equals string) (Tag, error) {
+func NewTagFromString(tag, equals string) (Tag, error) {
 	splitted := strings.SplitN(tag, equals, 2)
 	splittedLen := len(splitted)
 

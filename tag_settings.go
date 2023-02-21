@@ -143,7 +143,7 @@ func (tg *TagSettings) convertAsTagData(tags []string) ([]Tag, error) {
 	tagsData := make([]Tag, len(tags))
 
 	for k, v := range tags {
-		tagData, err := newTagData(v, tg.Equals)
+		tagData, err := NewTagFromString(v, tg.Equals)
 		if err != nil {
 			return nil, err
 		}
