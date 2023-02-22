@@ -133,12 +133,13 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 			Kind:  structField.Type.Kind(),
 			Tags:  tags,
 		}
-		addedFields++
 
 		err = tg.hasRequiredKeys(fields[addedFields])
 		if err != nil {
 			return nil, err
 		}
+
+		addedFields++
 	}
 
 	if addedFields != typeOf.NumField() {
