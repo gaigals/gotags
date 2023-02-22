@@ -9,7 +9,7 @@ import (
 
 // Processor can be used to do some custom stuff for each field (if defined)
 // and gets triggered after key validation (if passed).
-type Processor func(fieldData Field) error
+type Processor func(field Field) error
 
 // TagSettings holds data about tag.
 type TagSettings struct {
@@ -36,25 +36,25 @@ func (tg *TagSettings) ParseStruct(data any) ([]Field, error) {
 		return nil, err
 	}
 
-	fieldData, err := tg.unpackStruct(structure)
+	fields, err := tg.unpackStruct(structure)
 	if err != nil {
 		return nil, err
 	}
 
-	err = tg.runProcessor(fieldData)
+	err = tg.runProcessor(fields)
 	if err != nil {
 		return nil, err
 	}
 
-	return fieldData, nil
+	return fields, nil
 }
 
-func (tg *TagSettings) runProcessor(fieldData []Field) error {
+func (tg *TagSettings) runProcessor(fields []Field) error {
 	if tg.Processor == nil {
 		return nil
 	}
 
-	for _, field := range fieldData {
+	for _, field := range fields {
 		err := tg.Processor(field)
 		if err != nil {
 			return err

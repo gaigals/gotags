@@ -56,25 +56,3 @@ func (fd Field) SetValue(value any) error {
 	fd.Value.Set(reflect.ValueOf(value))
 	return nil
 }
-
-// TagDataFormatted formats all field keys and values in provided format.
-// For example, format, `%s=%s` will result in `key=value`.
-func (fd Field) TagDataFormatted(format string) []string {
-	slice := make([]string, 0)
-
-	for _, v := range fd.Tags {
-		slice = append(slice, v.StringFormatted(format))
-	}
-
-	return slice
-}
-
-func (fd Field) TagMap() map[string]string {
-	tagMap := make(map[string]string)
-
-	for _, v := range fd.Tags {
-		tagMap[v.Key] = v.Value
-	}
-
-	return tagMap
-}

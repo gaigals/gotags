@@ -11,8 +11,8 @@ type Tag struct {
 	Value string
 }
 
-func NewTagFromString(tag, equals string) (Tag, error) {
-	splitted := strings.SplitN(tag, equals, 2)
+func NewTagFromString(tagStr, equals string) (Tag, error) {
+	splitted := strings.SplitN(tagStr, equals, 2)
 	splittedLen := len(splitted)
 
 	if splittedLen == 0 {
@@ -20,19 +20,19 @@ func NewTagFromString(tag, equals string) (Tag, error) {
 	}
 
 	if splittedLen > 2 {
-		return Tag{}, fmt.Errorf("unexpected tag format '%s'", tag)
+		return Tag{}, fmt.Errorf("unexpected tagStr format '%s'", tagStr)
 	}
 
-	tagData := Tag{
+	tag := Tag{
 		Key: splitted[0],
 	}
 
-	// If tag has value ...
+	// If tagStr has value ...
 	if splittedLen == 2 {
-		tagData.Value = splitted[1]
+		tag.Value = splitted[1]
 	}
 
-	return tagData, nil
+	return tag, nil
 }
 
 func (td *Tag) validate(key *Key) error {
