@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"reflect"
 
@@ -35,6 +36,7 @@ type MyData struct {
 	Name    string `validator:"required"`
 	Age     uint   `validator:"gt:10;lt:130"`
 	Country string `validator:"eq:Latvia"`
+	Postal  string
 }
 
 // Will return error on TagSettings.ParseStruct() if fails.
@@ -55,12 +57,16 @@ func main() {
 		Country: "Latvia",
 	}
 
+	// tagSettings.IncludeNotTagged = true
+
 	// Parses all tags, triggers field processor if defined and validators
 	// if defined.
-	_, err := tagSettings.ParseStruct(&myData)
+	fields, err := tagSettings.ParseStruct(&myData)
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	fmt.Println(fields)
 
 	// Do some additional stuff with fields if required.
 	// ...

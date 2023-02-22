@@ -113,7 +113,7 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 		}
 
 		tagsSplitted := tg.readTagContent(structField.Tag)
-		if len(tagsSplitted) == 0 {
+		if len(tagsSplitted) == 0 && !tg.IncludeNotTagged {
 			continue
 		}
 
