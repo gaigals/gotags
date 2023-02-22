@@ -7,16 +7,16 @@ import (
 
 // Field contains all information about struct field.
 type Field struct {
-	Value   reflect.Value // Pointer to field
-	Name    string        // Field name
-	Kind    reflect.Kind  // Field type/kind
-	TagData []Tag         // Field tag data
+	Value reflect.Value // Pointer to field
+	Name  string        // Field name
+	Kind  reflect.Kind  // Field type/kind
+	Tags  []Tag         // Field tag data
 }
 
 // KeyValueBool acquires tag key value.
 // Returns ok(true) if key exists.
 func (fd Field) KeyValueBool(key string) (value string, ok bool) {
-	for _, tag := range fd.TagData {
+	for _, tag := range fd.Tags {
 		if tag.Key == key {
 			return tag.Value, true
 		}
@@ -62,7 +62,7 @@ func (fd Field) SetValue(value any) error {
 func (fd Field) TagDataFormatted(format string) []string {
 	slice := make([]string, 0)
 
-	for _, v := range fd.TagData {
+	for _, v := range fd.Tags {
 		slice = append(slice, v.StringFormatted(format))
 	}
 
@@ -72,7 +72,7 @@ func (fd Field) TagDataFormatted(format string) []string {
 func (fd Field) TagMap() map[string]string {
 	tagMap := make(map[string]string)
 
-	for _, v := range fd.TagData {
+	for _, v := range fd.Tags {
 		tagMap[v.Key] = v.Value
 	}
 

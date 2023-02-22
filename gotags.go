@@ -24,9 +24,18 @@ func NewKey(name string, isBool, isRequired bool, validator Validator, allowedKi
 // separator - char which will separate keys, like, gt=10,lt=20.
 // equals - char which defines key value, like, gt=10.
 // processor - processor which will process each tag field. (optional)
+// includeNotTagged - include fields not tagged with provided name.
 // keys - enabled keys.
-func NewTagSettings(name, separator, equals string, processor Processor, keys ...Key) TagSettings {
-	tg := TagSettings{name, separator, equals, keys, processor, nil}
+func NewTagSettings(name, separator, equals string, processor Processor, includeNotTagged bool, keys ...Key) TagSettings {
+	tg := TagSettings{
+		Name:             name,
+		Separator:        separator,
+		Equals:           equals,
+		Keys:             keys,
+		Processor:        processor,
+		IncludeNotTagged: includeNotTagged,
+		keysRequired:     nil,
+	}
 	tg.keysRequired = tg.requiredKeys()
 	return tg
 }
@@ -36,5 +45,12 @@ func NewTagSettings(name, separator, equals string, processor Processor, keys ..
 // processor - processor which will process each tag field. (optional)
 // keys - enabled keys.
 func NewTagSettingsDefault(name string, processor Processor, keys ...Key) TagSettings {
-	return NewTagSettings(name, defaultSeparator, defaultEquals, processor, keys...)
+	return NewTagSettings(
+		name,
+		defaultSeparator,
+		defaultEquals,
+		processor,
+		false,
+		keys...,
+	)
 }

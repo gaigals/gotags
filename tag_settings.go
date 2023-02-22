@@ -13,13 +13,13 @@ type Processor func(fieldData Field) error
 
 // TagSettings holds data about tag.
 type TagSettings struct {
-	Name      string
-	Separator string
-	Equals    string
-	Keys      []Key
-	Processor // Optional
-
-	keysRequired []string
+	Name             string
+	Separator        string
+	Equals           string
+	Keys             []Key
+	Processor             // Optional
+	IncludeNotTagged bool // Include not tagged fields
+	keysRequired     []string
 }
 
 // AddKey adds new key to TagSettings
@@ -99,26 +99,26 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 			continue
 		}
 
-		tags := tg.readTagContent(structField.Tag)
-		if len(tags) == 0 {
+		tagsSplitted := tg.readTagContent(structField.Tag)
+		if len(tagsSplitted) == 0 {
 			continue
 		}
 
-		tagData, err := tg.convertAsTagData(tags)
+		tags, err := tg.convertAsTags(tagsSplitted)
 		if err != nil {
 			return nil, err
 		}
 
-		err = tg.validateTagData(tagData)
+		err = tg.validateTags(tags)
 		if err != nil {
 			return nil, fmt.Errorf("field '%s': %w", structField.Name, err)
 		}
 
 		fields[i] = Field{
-			Value:   valueOf.Field(i),
-			Name:    structField.Name,
-			Kind:    structField.Type.Kind(),
-			TagData: tagData,
+			Value: valueOf.Field(i),
+			Name:  structField.Name,
+			Kind:  structField.Type.Kind(),
+			Tags:  tags,
 		}
 
 		err = tg.hasRequiredKeys(fields[i])
@@ -139,23 +139,23 @@ func (tg *TagSettings) readTagContent(tag reflect.StructTag) []string {
 	return strings.Split(tagString, tg.Separator)
 }
 
-func (tg *TagSettings) convertAsTagData(tags []string) ([]Tag, error) {
-	tagsData := make([]Tag, len(tags))
+func (tg *TagSettings) convertAsTags(tags []string) ([]Tag, error) {
+	tagsSlice := make([]Tag, len(tags))
 
 	for k, v := range tags {
-		tagData, err := NewTagFromString(v, tg.Equals)
+		tag, err := NewTagFromString(v, tg.Equals)
 		if err != nil {
 			return nil, err
 		}
 
-		tagsData[k] = tagData
+		tagsSlice[k] = tag
 	}
 
-	return tagsData, nil
+	return tagsSlice, nil
 }
 
-func (tg *TagSettings) validateTagData(tagData []Tag) error {
-	for _, tag := range tagData {
+func (tg *TagSettings) validateTags(tags []Tag) error {
+	for _, tag := range tags {
 		key := tg.findMatchingKey(tag.Key)
 		if key == nil {
 			return fmt.Errorf("tag '%s' does not exist", tag.Key)
@@ -180,14 +180,14 @@ func (tg *TagSettings) findMatchingKey(key string) *Key {
 	return nil
 }
 
-func (tg *TagSettings) hasRequiredKeys(fieldData Field) error {
+func (tg *TagSettings) hasRequiredKeys(field Field) error {
 	for _, v := range tg.keysRequired {
-		if fieldData.HasKey(v) {
+		if field.HasKey(v) {
 			continue
 		}
 
 		return fmt.Errorf("%s: key '%s' is required but not found",
-			fieldData.Name, v)
+			field.Name, v)
 	}
 
 	return nil
