@@ -48,12 +48,8 @@ type MyData struct {
 }
 
 // Will return error on TagSettings.ParseStruct() if fails.
-func tagProcessor(field gotags.FieldData) error {
+func tagProcessor(field gotags.Field) error {
     // Do some custom stuff for each field if required.
-
-    // value := field.Value.Interface()
-    // rules := field.TagDataFormatted("%s=%s")
-    // errs := validator.Field(value, field.TagDataFormatted("%s=%s"))
     // ...
     return nil
 }
@@ -67,12 +63,12 @@ func main() {
 
     // Parses all tags, triggers field processor if defined and validators
     // if defined.
-    fieldData, err := tagSettings.ParseStruct(&myData)
+    fields, err := tagSettings.ParseStruct(&myData)
     if err != nil {
         log.Fatalln(err)
     }
 
-    // Do some additional stuff with fieldData if required.
+    // Do some additional stuff with fields if required.
     // ...
 }
 

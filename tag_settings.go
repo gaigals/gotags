@@ -28,6 +28,17 @@ func (tg *TagSettings) AddKey(name string, isBool, isRequired bool, validator Va
 	tg.keysRequired = tg.requiredKeys()
 }
 
+// RemoveKey removes key from registered keys if exists.
+func (tg *TagSettings) RemoveKey(name string) {
+	for idx, key := range tg.Keys {
+		if key.Name != name {
+			continue
+		}
+
+		tg.Keys = append(tg.Keys[:idx], tg.Keys[idx+1:]...)
+	}
+}
+
 // ParseStruct parses passed struct and triggers validators if defined
 // and field processors if defined.
 func (tg *TagSettings) ParseStruct(data any) ([]Field, error) {

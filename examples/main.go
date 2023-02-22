@@ -62,6 +62,6 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	// Do some additional stuff with fieldData if required.
+	// Do some additional stuff with fields if required.
 	// ...
 }
