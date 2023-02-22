@@ -103,10 +103,12 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 	typeOf := reflect.TypeOf(valueOf.Interface())
 
 	fields := make([]Field, typeOf.NumField())
+	addedFields := 0
 
 	for i := 0; i < typeOf.NumField(); i++ {
 		structField := typeOf.Field(i)
-		if !structField.IsExported() || structField.Tag == "" {
+		if !structField.IsExported() ||
+			(structField.Tag == "" && !tg.IncludeNotTagged) {
 			continue
 		}
 
@@ -125,17 +127,22 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 			return nil, fmt.Errorf("field '%s': %w", structField.Name, err)
 		}
 
-		fields[i] = Field{
+		fields[addedFields] = Field{
 			Value: valueOf.Field(i),
 			Name:  structField.Name,
 			Kind:  structField.Type.Kind(),
 			Tags:  tags,
 		}
+		addedFields++
 
-		err = tg.hasRequiredKeys(fields[i])
+		err = tg.hasRequiredKeys(fields[addedFields])
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if addedFields != typeOf.NumField() {
+		fields = fields[:addedFields]
 	}
 
 	return fields, nil
