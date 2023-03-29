@@ -100,6 +100,11 @@ func (tg *TagSettings) unpackStruct(valueOf reflect.Value) ([]Field, error) {
 }
 
 func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
+	valueOf, err := tg.tryUnpackInterface(valueOf)
+	if err != nil {
+		return nil, err
+	}
+
 	typeOf := reflect.TypeOf(valueOf.Interface())
 
 	fields := make([]Field, typeOf.NumField())
@@ -147,6 +152,18 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 	}
 
 	return fields, nil
+}
+
+func (tg *TagSettings) tryUnpackInterface(valueOf reflect.Value) (reflect.Value, error) {
+	if valueOf.Kind() == reflect.Struct {
+		return valueOf, nil
+	}
+
+	if valueOf.Kind() != reflect.Interface && valueOf.Kind() != reflect.Ptr {
+		return reflect.Value{}, fmt.Errorf("underlying value must be struct")
+	}
+
+	return tg.tryUnpackInterface(valueOf.Elem())
 }
 
 func (tg *TagSettings) readTagContent(tag reflect.StructTag) []string {
