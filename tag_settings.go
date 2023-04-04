@@ -19,7 +19,7 @@ type TagSettings struct {
 	Keys                 []Key
 	Processor                 // Optional
 	IncludeNotTagged     bool // Include not tagged fields
-	DisableKeyValueLogic bool // Disable key/value support, default false.
+	disableKeyValidation bool // Disable key/value support, default false.
 	keysRequired         []string
 }
 
@@ -31,11 +31,12 @@ func NewSettings(name string) *TagSettings {
 	}
 }
 
-// WithNoKeyValueLogic tells TagSettings that you won't use key/value logic
-// and expect only value, like, `myTagName:"myValue".
-// This method is completely opposite of TagSettings.WithCustomSeparators().
-func (tg *TagSettings) WithNoKeyValueLogic() *TagSettings {
-	tg.DisableKeyValueLogic = true
+// WithNoKeyExistValidation tells TagSettings that you don't care if
+// provided key in tag does not exist. By default, TagSettings will return error
+// if key is unknown and not defined.
+// This can be useful if tag input is dynamic and not predefined.
+func (tg *TagSettings) WithNoKeyExistValidation() *TagSettings {
+	tg.disableKeyValidation = true
 	return tg
 }
 
@@ -46,7 +47,7 @@ func (tg *TagSettings) WithNoKeyValueLogic() *TagSettings {
 func (tg *TagSettings) WithCustomSeparators(separator, equals string) *TagSettings {
 	tg.Separator = separator
 	tg.Equals = equals
-	tg.DisableKeyValueLogic = false
+	tg.disableKeyValidation = false
 	return tg
 }
 
@@ -179,6 +180,9 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 		if len(tagsSplitted) == 0 && !tg.IncludeNotTagged {
 			continue
 		}
+		if tagsSplitted[0] == "" {
+			return nil, fmt.Errorf("tag=%s is empty", tg.Name)
+		}
 
 		tags, err := tg.convertAsTags(tagsSplitted)
 		if err != nil {
@@ -230,10 +234,6 @@ func (tg *TagSettings) readTagContent(tag reflect.StructTag) []string {
 		return nil
 	}
 
-	if tg.DisableKeyValueLogic {
-		return []string{tagString}
-	}
-
 	return strings.Split(tagString, tg.Separator)
 }
 
@@ -241,11 +241,6 @@ func (tg *TagSettings) convertAsTags(tags []string) ([]Tag, error) {
 	tagsSlice := make([]Tag, len(tags))
 
 	for k, v := range tags {
-		if tg.DisableKeyValueLogic {
-			tagsSlice[k] = newTagFromValueString(v)
-			continue
-		}
-
 		tag, err := NewTagFromString(v, tg.Equals)
 		if err != nil {
 			return nil, err
@@ -260,8 +255,11 @@ func (tg *TagSettings) convertAsTags(tags []string) ([]Tag, error) {
 func (tg *TagSettings) validateTags(tags []Tag) error {
 	for _, tag := range tags {
 		key := tg.findMatchingKey(tag.Key)
-		if key == nil {
+		if key == nil && !tg.disableKeyValidation {
 			return fmt.Errorf("tag '%s' does not exist", tag.Key)
+		}
+		if key == nil {
+			return nil
 		}
 
 		err := tag.validate(key)
