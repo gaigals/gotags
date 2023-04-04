@@ -35,6 +35,13 @@ func NewTagFromString(tagStr, equals string) (Tag, error) {
 	return tag, nil
 }
 
+func newTagFromValueString(tagStr string) Tag {
+	return Tag{
+		Key:   "",
+		Value: tagStr,
+	}
+}
+
 func (td *Tag) validate(key *Key) error {
 	if key.IsBool && td.Value != "" {
 		return fmt.Errorf("tag '%s' does not take any arguments", td.Key)

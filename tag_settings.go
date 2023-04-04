@@ -13,19 +13,77 @@ type Processor func(field Field) error
 
 // TagSettings holds data about tag.
 type TagSettings struct {
-	Name             string
-	Separator        string
-	Equals           string
-	Keys             []Key
-	Processor             // Optional
-	IncludeNotTagged bool // Include not tagged fields
-	keysRequired     []string
+	Name                 string
+	Separator            string
+	Equals               string
+	Keys                 []Key
+	Processor                 // Optional
+	IncludeNotTagged     bool // Include not tagged fields
+	DisableKeyValueLogic bool // Disable key/value support, default false.
+	keysRequired         []string
 }
 
-// AddKey adds new key to TagSettings
-func (tg *TagSettings) AddKey(name string, isBool, isRequired bool, validator Validator, allowedKinds ...reflect.Kind) {
-	tg.Keys = append(tg.Keys, NewKey(name, isBool, isRequired, validator, allowedKinds...))
-	tg.keysRequired = tg.requiredKeys()
+func NewSettings(name string) *TagSettings {
+	return &TagSettings{
+		Name:      name,
+		Separator: defaultSeparator,
+		Equals:    defaultEquals,
+	}
+}
+
+// WithNoKeyValueLogic tells TagSettings that you won't use key/value logic
+// and expect only value, like, `myTagName:"myValue".
+// This method is completely opposite of TagSettings.WithCustomSeparators().
+func (tg *TagSettings) WithNoKeyValueLogic() *TagSettings {
+	tg.DisableKeyValueLogic = true
+	return tg
+}
+
+// WithCustomSeparators can be used to set custom separator and equals key to
+// your desired characters.
+// By default, TagSettings use separator - ";" and equals - ":"
+// ("key:value;otherKey:otherValue").
+func (tg *TagSettings) WithCustomSeparators(separator, equals string) *TagSettings {
+	tg.Separator = separator
+	tg.Equals = equals
+	tg.DisableKeyValueLogic = false
+	return tg
+}
+
+// WithProcessor adds field processor.
+// Processor can be used to some custom stuff for each parsed field.
+// This is optional and is not required.
+// Processor gets called after tag validation.
+func (tg *TagSettings) WithProcessor(processor Processor) *TagSettings {
+	tg.Processor = processor
+	return tg
+}
+
+// IncludeUntaggedFields tells TagSettings to parse and include in results
+// not tagged struct fields.
+func (tg *TagSettings) IncludeUntaggedFields() *TagSettings {
+	tg.IncludeNotTagged = true
+	return tg
+}
+
+// AddKeys can be used to add new keys to TagSettings.
+// Note: this method does not check for duplicates.
+func (tg *TagSettings) AddKeys(keys ...Key) *TagSettings {
+	for _, key := range keys {
+		_ = tg.AddKey(key)
+	}
+
+	return tg
+}
+
+// AddKey adds new key to TagSettings.
+// Note: this method does not check for duplicates.
+func (tg *TagSettings) AddKey(key Key) *TagSettings {
+	tg.Keys = append(tg.Keys, key)
+	if key.IsRequired {
+		tg.keysRequired = append(tg.keysRequired, key.Name)
+	}
+	return tg
 }
 
 // RemoveKey removes key from registered keys if exists.
@@ -172,6 +230,10 @@ func (tg *TagSettings) readTagContent(tag reflect.StructTag) []string {
 		return nil
 	}
 
+	if tg.DisableKeyValueLogic {
+		return []string{tagString}
+	}
+
 	return strings.Split(tagString, tg.Separator)
 }
 
@@ -179,6 +241,11 @@ func (tg *TagSettings) convertAsTags(tags []string) ([]Tag, error) {
 	tagsSlice := make([]Tag, len(tags))
 
 	for k, v := range tags {
+		if tg.DisableKeyValueLogic {
+			tagsSlice[k] = newTagFromValueString(v)
+			continue
+		}
+
 		tag, err := NewTagFromString(v, tg.Equals)
 		if err != nil {
 			return nil, err
