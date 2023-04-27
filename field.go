@@ -15,8 +15,8 @@ type Field struct {
 
 // KeyValueBool acquires tag key value.
 // Returns ok(true) if key exists.
-func (fd Field) KeyValueBool(key string) (value string, ok bool) {
-	for _, tag := range fd.Tags {
+func (field Field) KeyValueBool(key string) (value string, ok bool) {
+	for _, tag := range field.Tags {
 		if tag.Key == key {
 			return tag.Value, true
 		}
@@ -26,33 +26,41 @@ func (fd Field) KeyValueBool(key string) (value string, ok bool) {
 }
 
 // KeyValue returns tag key value.
-func (fd Field) KeyValue(key string) string {
-	value, _ := fd.KeyValueBool(key)
+func (field Field) KeyValue(key string) string {
+	value, _ := field.KeyValueBool(key)
 	return value
 }
 
 // HasKey checks if field contains tag key.
-func (fd Field) HasKey(key string) bool {
-	_, ok := fd.KeyValueBool(key)
+func (field Field) HasKey(key string) bool {
+	_, ok := field.KeyValueBool(key)
 	return ok
 }
 
 // HasType checks if field has passed type.
-func (fd Field) HasType(targetType reflect.Type) bool {
-	return reflect.TypeOf(fd.Value.Interface()) == targetType
+func (field Field) HasType(targetType reflect.Type) bool {
+	return reflect.TypeOf(field.Value.Interface()) == targetType
 }
 
 // SetValue sets new value for field.
-func (fd Field) SetValue(value any) error {
+func (field Field) SetValue(value any) error {
 	// Safety checks ...
-	if !fd.Value.CanSet() {
-		return fmt.Errorf("%s: cannot be changed", fd.Name)
+	if !field.Value.CanSet() {
+		return fmt.Errorf("%s: cannot be changed", field.Name)
 	}
-	if !fd.HasType(reflect.TypeOf(value)) {
+	if !field.HasType(reflect.TypeOf(value)) {
 		return fmt.Errorf("%s(%s): cannot apply value of type %v\n",
-			reflect.TypeOf(fd.Value.Interface()), reflect.TypeOf(value), value)
+			reflect.TypeOf(field.Value.Interface()), reflect.TypeOf(value), value)
 	}
 
-	fd.Value.Set(reflect.ValueOf(value))
+	field.Value.Set(reflect.ValueOf(value))
 	return nil
+}
+
+func (field Field) FirstTag() Tag {
+	if len(field.Tags) == 0 {
+		return Tag{}
+	}
+
+	return field.Tags[0]
 }
