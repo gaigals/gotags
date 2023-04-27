@@ -101,12 +101,14 @@ func (tg *TagSettings) RemoveKey(name string) {
 // ParseStruct parses passed struct and triggers validators if defined
 // and field processors if defined.
 func (tg *TagSettings) ParseStruct(data any) ([]Field, error) {
-	structure, err := tg.unpackPtr(data)
+	valueOf := reflect.ValueOf(data)
+
+	err := tg.mustValidPtr(valueOf)
 	if err != nil {
 		return nil, err
 	}
 
-	fields, err := tg.unpackStruct(structure)
+	fields, err := tg.unpackStruct(tg.unpackPtr(valueOf))
 	if err != nil {
 		return nil, err
 	}
@@ -134,14 +136,20 @@ func (tg *TagSettings) runProcessor(fields []Field) error {
 	return nil
 }
 
-func (tg *TagSettings) unpackPtr(data any) (reflect.Value, error) {
-	valueOf := reflect.ValueOf(data)
-
-	if valueOf.Kind() != reflect.Ptr || valueOf.IsNil() {
-		return reflect.Value{}, errors.New("passed value must be valid pointer")
+func (tg *TagSettings) unpackPtr(valueOf reflect.Value) reflect.Value {
+	if valueOf.Kind() == reflect.Ptr {
+		return tg.unpackPtr(valueOf.Elem())
 	}
 
-	return valueOf.Elem(), nil
+	return valueOf
+}
+
+func (tg *TagSettings) mustValidPtr(valueOfPtr reflect.Value) error {
+	if valueOfPtr.Kind() != reflect.Ptr || valueOfPtr.IsNil() {
+		return errors.New("passed value must be valid pointer")
+	}
+
+	return nil
 }
 
 func (tg *TagSettings) unpackStruct(valueOf reflect.Value) ([]Field, error) {
