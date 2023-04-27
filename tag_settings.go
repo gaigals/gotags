@@ -108,7 +108,12 @@ func (tg *TagSettings) ParseStruct(data any) ([]Field, error) {
 		return nil, err
 	}
 
-	fields, err := tg.unpackStruct(tg.unpackPtr(valueOf))
+	structure, err := tg.unpackPtr(valueOf)
+	if err != nil {
+		return nil, err
+	}
+
+	fields, err := tg.unpackStruct(structure)
 	if err != nil {
 		return nil, err
 	}
@@ -136,12 +141,16 @@ func (tg *TagSettings) runProcessor(fields []Field) error {
 	return nil
 }
 
-func (tg *TagSettings) unpackPtr(valueOf reflect.Value) reflect.Value {
-	if valueOf.Kind() == reflect.Ptr {
-		return tg.unpackPtr(valueOf.Elem())
+func (tg *TagSettings) unpackPtr(valueOf reflect.Value) (reflect.Value, error) {
+	if valueOf.Kind() != reflect.Ptr {
+		return valueOf, nil
 	}
 
-	return valueOf
+	if valueOf.IsNil() {
+		return reflect.Value{}, errors.New("passed value must be valid pointer")
+	}
+
+	return tg.unpackPtr(valueOf.Elem())
 }
 
 func (tg *TagSettings) mustValidPtr(valueOfPtr reflect.Value) error {
