@@ -13,19 +13,78 @@ type Processor func(field Field) error
 
 // TagSettings holds data about tag.
 type TagSettings struct {
-	Name             string
-	Separator        string
-	Equals           string
-	Keys             []Key
-	Processor             // Optional
-	IncludeNotTagged bool // Include not tagged fields
-	keysRequired     []string
+	Name                 string
+	Separator            string
+	Equals               string
+	Keys                 []Key
+	Processor                 // Optional
+	IncludeNotTagged     bool // Include not tagged fields
+	disableKeyValidation bool // Disable key/value support, default false.
+	keysRequired         []string
 }
 
-// AddKey adds new key to TagSettings
-func (tg *TagSettings) AddKey(name string, isBool, isRequired bool, validator Validator, allowedKinds ...reflect.Kind) {
-	tg.Keys = append(tg.Keys, NewKey(name, isBool, isRequired, validator, allowedKinds...))
-	tg.keysRequired = tg.requiredKeys()
+func NewSettings(name string) *TagSettings {
+	return &TagSettings{
+		Name:      name,
+		Separator: defaultSeparator,
+		Equals:    defaultEquals,
+	}
+}
+
+// WithNoKeyExistValidation tells TagSettings that you don't care if
+// provided key in tag does not exist. By default, TagSettings will return error
+// if key is unknown and not defined.
+// This can be useful if tag input is dynamic and not predefined.
+func (tg *TagSettings) WithNoKeyExistValidation() *TagSettings {
+	tg.disableKeyValidation = true
+	return tg
+}
+
+// WithCustomSeparators can be used to set custom separator and equals key to
+// your desired characters.
+// By default, TagSettings use separator - ";" and equals - ":"
+// ("key:value;otherKey:otherValue").
+func (tg *TagSettings) WithCustomSeparators(separator, equals string) *TagSettings {
+	tg.Separator = separator
+	tg.Equals = equals
+	tg.disableKeyValidation = false
+	return tg
+}
+
+// WithProcessor adds field processor.
+// Processor can be used to some custom stuff for each parsed field.
+// This is optional and is not required.
+// Processor gets called after tag validation.
+func (tg *TagSettings) WithProcessor(processor Processor) *TagSettings {
+	tg.Processor = processor
+	return tg
+}
+
+// IncludeUntaggedFields tells TagSettings to parse and include in results
+// not tagged struct fields.
+func (tg *TagSettings) IncludeUntaggedFields() *TagSettings {
+	tg.IncludeNotTagged = true
+	return tg
+}
+
+// AddKeys can be used to add new keys to TagSettings.
+// Note: this method does not check for duplicates.
+func (tg *TagSettings) AddKeys(keys ...Key) *TagSettings {
+	for _, key := range keys {
+		_ = tg.AddKey(key)
+	}
+
+	return tg
+}
+
+// AddKey adds new key to TagSettings.
+// Note: this method does not check for duplicates.
+func (tg *TagSettings) AddKey(key Key) *TagSettings {
+	tg.Keys = append(tg.Keys, key)
+	if key.IsRequired {
+		tg.keysRequired = append(tg.keysRequired, key.Name)
+	}
+	return tg
 }
 
 // RemoveKey removes key from registered keys if exists.
@@ -42,7 +101,14 @@ func (tg *TagSettings) RemoveKey(name string) {
 // ParseStruct parses passed struct and triggers validators if defined
 // and field processors if defined.
 func (tg *TagSettings) ParseStruct(data any) ([]Field, error) {
-	structure, err := tg.unpackPtr(data)
+	valueOf := reflect.ValueOf(data)
+
+	err := tg.mustValidPtr(valueOf)
+	if err != nil {
+		return nil, err
+	}
+
+	structure, err := tg.unpackPtr(valueOf)
 	if err != nil {
 		return nil, err
 	}
@@ -75,14 +141,24 @@ func (tg *TagSettings) runProcessor(fields []Field) error {
 	return nil
 }
 
-func (tg *TagSettings) unpackPtr(data any) (reflect.Value, error) {
-	valueOf := reflect.ValueOf(data)
+func (tg *TagSettings) unpackPtr(valueOf reflect.Value) (reflect.Value, error) {
+	if valueOf.Kind() != reflect.Ptr {
+		return valueOf, nil
+	}
 
-	if valueOf.Kind() != reflect.Ptr || valueOf.IsNil() {
+	if valueOf.IsNil() {
 		return reflect.Value{}, errors.New("passed value must be valid pointer")
 	}
 
-	return valueOf.Elem(), nil
+	return tg.unpackPtr(valueOf.Elem())
+}
+
+func (tg *TagSettings) mustValidPtr(valueOfPtr reflect.Value) error {
+	if valueOfPtr.Kind() != reflect.Ptr || valueOfPtr.IsNil() {
+		return errors.New("passed value must be valid pointer")
+	}
+
+	return nil
 }
 
 func (tg *TagSettings) unpackStruct(valueOf reflect.Value) ([]Field, error) {
@@ -120,6 +196,9 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 		tagsSplitted := tg.readTagContent(structField.Tag)
 		if len(tagsSplitted) == 0 && !tg.IncludeNotTagged {
 			continue
+		}
+		if tagsSplitted[0] == "" {
+			return nil, fmt.Errorf("tag=%s is empty", tg.Name)
 		}
 
 		tags, err := tg.convertAsTags(tagsSplitted)
@@ -193,8 +272,11 @@ func (tg *TagSettings) convertAsTags(tags []string) ([]Tag, error) {
 func (tg *TagSettings) validateTags(tags []Tag) error {
 	for _, tag := range tags {
 		key := tg.findMatchingKey(tag.Key)
-		if key == nil {
+		if key == nil && !tg.disableKeyValidation {
 			return fmt.Errorf("tag '%s' does not exist", tag.Key)
+		}
+		if key == nil {
+			return nil
 		}
 
 		err := tag.validate(key)
