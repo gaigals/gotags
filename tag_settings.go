@@ -194,10 +194,10 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 		}
 
 		tagsSplitted := tg.readTagContent(structField.Tag)
-		if len(tagsSplitted) == 0 || !tg.IncludeNotTagged {
+		if len(tagsSplitted) == 0 && !tg.IncludeNotTagged {
 			continue
 		}
-		if tagsSplitted[0] == "" {
+		if tagsSplitted[0] == "" || len(tagsSplitted) == 0 {
 			return nil, fmt.Errorf("tag=%s is empty", tg.Name)
 		}
 

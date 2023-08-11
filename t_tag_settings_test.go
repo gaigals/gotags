@@ -27,7 +27,7 @@ func Benchmark_ParseStruct(b *testing.B) {
 		Phone:   "2213123112",
 	}
 
-	tagSettings := NewTagSettings("gotags", ",", "=", nil, keys...)
+	tagSettings := NewTagSettings("gotags", ",", "=", nil, false, keys...)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
