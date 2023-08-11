@@ -197,7 +197,7 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 		if len(tagsSplitted) == 0 && !tg.IncludeNotTagged {
 			continue
 		}
-		if tagsSplitted[0] == "" || len(tagsSplitted) == 0 {
+		if len(tagsSplitted) == 0 || tagsSplitted[0] == "" {
 			return nil, fmt.Errorf("tag=%s is empty", tg.Name)
 		}
 
