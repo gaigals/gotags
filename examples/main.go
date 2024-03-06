@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"reflect"
 
 	"github.com/gaigals/gotags"
 )
@@ -18,8 +17,8 @@ const (
 var (
 	keyRequired    = gotags.NewKey(tagKeyRequired, true, false, nil)
 	keyEquals      = gotags.NewKey(tagKeyEquals, false, false, nil)
-	keyGreaterThan = gotags.NewKey(tagKeyGreaterThan, false, false, nil, reflect.Int)
-	keyLessThan    = gotags.NewKey(tagKeyLessThan, false, false, nil, reflect.Int)
+	keyGreaterThan = gotags.NewKey(tagKeyGreaterThan, false, false, nil)
+	keyLessThan    = gotags.NewKey(tagKeyLessThan, false, false, nil)
 )
 
 // Default separator (;), default equals (:)
