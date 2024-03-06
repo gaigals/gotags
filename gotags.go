@@ -1,9 +1,5 @@
 package gotags
 
-import (
-	"reflect"
-)
-
 const (
 	defaultSeparator = ";"
 	defaultEquals    = ":"
@@ -14,9 +10,13 @@ const (
 // isBool - is key boolean (does not require value).
 // isRequired - is this key required if tag is defined.
 // validator - key value validator interface. (optional)
-// allowedKinds - allowed types/kinds. (optional)
-func NewKey(name string, isBool, isRequired bool, validator Validator, allowedKinds ...reflect.Kind) Key {
-	return Key{name, isBool, isRequired, allowedKinds, validator}
+func NewKey(name string, isBool, isRequired bool, validator Validator) Key {
+	return Key{
+		Name:       name,
+		IsBool:     isBool,
+		IsRequired: isRequired,
+		Validator:  validator,
+	}
 }
 
 // NewTagSettings creates new Tag with custom separator and equals.
@@ -26,7 +26,12 @@ func NewKey(name string, isBool, isRequired bool, validator Validator, allowedKi
 // processor - processor which will process each tag field. (optional)
 // includeNotTagged - include fields not tagged with provided name.
 // keys - enabled keys.
-func NewTagSettings(name, separator, equals string, processor Processor, includeNotTagged bool, keys ...Key) TagSettings {
+func NewTagSettings(
+	name, separator, equals string,
+	processor Processor,
+	includeNotTagged bool,
+	keys ...Key,
+) TagSettings {
 	tg := TagSettings{
 		Name:             name,
 		Separator:        separator,

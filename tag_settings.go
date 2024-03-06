@@ -197,18 +197,19 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 		if len(tagsSplitted) == 0 && !tg.IncludeNotTagged {
 			continue
 		}
-		if len(tagsSplitted) == 0 || tagsSplitted[0] == "" {
-			return nil, fmt.Errorf("tag=%s is empty", tg.Name)
-		}
 
-		tags, err := tg.convertAsTags(tagsSplitted)
-		if err != nil {
-			return nil, err
-		}
+		var tags []Tag
 
-		err = tg.validateTags(tags)
-		if err != nil {
-			return nil, fmt.Errorf("field '%s': %w", structField.Name, err)
+		if len(tagsSplitted) > 0 {
+			tags, err = tg.convertAsTags(tagsSplitted)
+			if err != nil {
+				return nil, err
+			}
+
+			err = tg.validateTags(tags)
+			if err != nil {
+				return nil, fmt.Errorf("field '%s': %w", structField.Name, err)
+			}
 		}
 
 		fields[addedFields] = Field{
