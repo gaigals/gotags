@@ -1,6 +1,6 @@
 module github.com/gaigals/gotags
 
-go 1.22
+go 1.26.3
 
 require github.com/MarvinJWendt/testza v0.5.2
 
