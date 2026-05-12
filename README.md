@@ -75,6 +75,7 @@ gotags.NewSettings("validator")
 gotags.NewSettings("validator").WithEscapeCharacter('\\')
 gotags.NewTagSettingsDefault("validator", nil, keys...)
 gotags.NewTagSettings("validator", ",", "=", nil, false, keys...)
+gotags.NewTagFromStringWithEscape("min:2", ":", '\\')
 ```
 
 - `WithProcessor(fn)` runs after validation.
@@ -123,6 +124,12 @@ var validatorSettings = gotags.NewSettings("validator").
 var gotagsSettings = gotags.NewSettings("gotags").
 	WithCustomSeparators(",", "=").
 	WithEscapeCharacter('\\')
+
+tag, err := gotags.NewTagFromStringWithEscape(
+	`replace=old\,value|new\|value`,
+	"=",
+	'\\',
+)
 
 type Rules struct {
 	Regex      string `validator:"regex:^foo\,bar$"`

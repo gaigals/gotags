@@ -11,7 +11,15 @@ type Tag struct {
 }
 
 func NewTagFromString(tagStr, equals string) (Tag, error) {
-	return newTagFromString(tagStr, equals, 0)
+	return NewTagFromStringWithEscape(tagStr, equals, 0)
+}
+
+func NewTagFromStringWithEscape(
+	tagStr,
+	equals string,
+	escapeCharacter byte,
+) (Tag, error) {
+	return newTagFromString(tagStr, equals, escapeCharacter)
 }
 
 func newTagFromString(tagStr, equals string, escapeCharacter byte) (Tag, error) {

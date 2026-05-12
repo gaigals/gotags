@@ -112,6 +112,53 @@ func Test_SplitFirstWithOptionalEscapes(t *testing.T) {
 	})
 }
 
+func Test_NewTagFromStringWithEscape(t *testing.T) {
+	t.Run("Escape disabled keeps separators literal", func(t *testing.T) {
+		tag, err := NewTagFromString(`replace=old\,value|new\|value`, "=")
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, tag, Tag{
+			Key:   "replace",
+			Value: `old\,value|new\|value`,
+		}, "unexpected tag")
+	})
+
+	t.Run("Escape enabled unescapes reserved characters", func(t *testing.T) {
+		tag, err := NewTagFromStringWithEscape(
+			`replace=old\,value|new\|value`,
+			"=",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, tag, Tag{
+			Key:   "replace",
+			Value: "old,value|new|value",
+		}, "unexpected tag")
+	})
+
+	t.Run("Escape enabled preserves unknown escapes", func(t *testing.T) {
+		tag, err := NewTagFromStringWithEscape(
+			`regex=^\d+\.\d+$`,
+			"=",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, tag, Tag{
+			Key:   "regex",
+			Value: `^\d+\.\d+$`,
+		}, "unexpected tag")
+	})
+
+	t.Run("Trailing naked backslash returns error", func(t *testing.T) {
+		tag, err := NewTagFromStringWithEscape(
+			`regex=abc\`,
+			"=",
+			testEscapeCharacter,
+		)
+		testza.AssertNotNil(t, err, "expected error")
+		testza.AssertEqual(t, tag, Tag{}, "unexpected tag")
+	})
+}
+
 func Test_ParseStructWithEscapedValues(t *testing.T) {
 	type testStruct struct {
 		Plain            string `testtag:"min=1,max=10"`
