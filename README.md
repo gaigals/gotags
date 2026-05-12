@@ -72,6 +72,7 @@ Parse with `ParseStruct(&value)`.
 
 ```go
 gotags.NewSettings("validator")
+gotags.NewSettings("validator").WithEscapeCharacter('\\')
 gotags.NewTagSettingsDefault("validator", nil, keys...)
 gotags.NewTagSettings("validator", ",", "=", nil, false, keys...)
 ```
@@ -79,6 +80,7 @@ gotags.NewTagSettings("validator", ",", "=", nil, false, keys...)
 - `WithProcessor(fn)` runs after validation.
 - `IncludeUntaggedFields()` keeps exported fields without the tag.
 - `WithNoKeyExistValidation()` accepts dynamic tags.
+- `WithEscapeCharacter('\\')` enables escape parsing.
 
 ## Custom Separators
 
@@ -111,9 +113,17 @@ type Item struct {
 
 ## Escaping
 
-Use escapes only when a value must contain parser syntax chars.
+Escaping is off by default.\
+Enable it per `TagSettings` only when values need parser syntax chars.
 
 ```go
+var validatorSettings = gotags.NewSettings("validator").
+	WithEscapeCharacter('\\')
+
+var gotagsSettings = gotags.NewSettings("gotags").
+	WithCustomSeparators(",", "=").
+	WithEscapeCharacter('\\')
+
 type Rules struct {
 	Regex      string `validator:"regex:^foo\,bar$"`
 	RegexDots  string `validator:"regex:^\d+\.\d+$"`

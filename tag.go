@@ -11,28 +11,30 @@ type Tag struct {
 }
 
 func NewTagFromString(tagStr, equals string) (Tag, error) {
-	splitted, err := splitFirstWithOptionalEscapes(tagStr, equals)
+	return newTagFromString(tagStr, equals, 0)
+}
+
+func newTagFromString(tagStr, equals string, escapeCharacter byte) (Tag, error) {
+	key, value, hasValue, err := splitTagKeyValueWithEscape(
+		tagStr,
+		equals,
+		escapeCharacter,
+	)
 	if err != nil {
 		return Tag{}, err
 	}
 
-	splittedLen := len(splitted)
-
-	if splittedLen == 0 {
+	if key == "" && tagStr == "" {
 		return Tag{}, errors.New("no keys defined")
 	}
 
-	if splittedLen > 2 {
-		return Tag{}, fmt.Errorf("unexpected tagStr format '%s'", tagStr)
-	}
-
 	tag := Tag{
-		Key: splitted[0],
+		Key: key,
 	}
 
 	// If tagStr has value ...
-	if splittedLen == 2 {
-		tag.Value = splitted[1]
+	if hasValue {
+		tag.Value = value
 	}
 
 	return tag, nil
