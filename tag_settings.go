@@ -161,13 +161,11 @@ func (tg *TagSettings) mustValidPtr(valueOfPtr reflect.Value) error {
 }
 
 func (tg *TagSettings) unpackStruct(valueOf reflect.Value) ([]Field, error) {
-	typeOf := reflect.TypeOf(valueOf)
-
-	if typeOf.Kind() != reflect.Struct {
+	if valueOf.Kind() != reflect.Struct {
 		return nil, errors.New("passed value must be pointer of struct")
 	}
 
-	if typeOf.NumField() == 0 {
+	if valueOf.NumField() == 0 {
 		return nil, nil
 	}
 
@@ -180,7 +178,7 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 		return nil, err
 	}
 
-	typeOf := reflect.TypeOf(valueOf.Interface())
+	typeOf := valueOf.Type()
 
 	fields := make([]Field, typeOf.NumField())
 	addedFields := 0
@@ -293,9 +291,9 @@ func (tg *TagSettings) validateTags(tags []Tag) error {
 }
 
 func (tg *TagSettings) findMatchingKey(key string) *Key {
-	for _, v := range tg.Keys {
-		if key == v.Name {
-			return &v
+	for idx := range tg.Keys {
+		if key == tg.Keys[idx].Name {
+			return &tg.Keys[idx]
 		}
 	}
 
@@ -303,6 +301,10 @@ func (tg *TagSettings) findMatchingKey(key string) *Key {
 }
 
 func (tg *TagSettings) hasRequiredKeys(field Field) error {
+	if len(tg.keysRequired) == 0 {
+		return nil
+	}
+
 	for _, v := range tg.keysRequired {
 		if field.HasKey(v) {
 			continue
@@ -316,7 +318,7 @@ func (tg *TagSettings) hasRequiredKeys(field Field) error {
 }
 
 func (tg *TagSettings) requiredKeys() []string {
-	required := make([]string, 0)
+	required := make([]string, 0, len(tg.Keys))
 
 	for _, v := range tg.Keys {
 		if v.IsRequired {
