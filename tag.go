@@ -3,7 +3,6 @@ package gotags
 import (
 	"errors"
 	"fmt"
-	"strings"
 )
 
 type Tag struct {
@@ -12,7 +11,11 @@ type Tag struct {
 }
 
 func NewTagFromString(tagStr, equals string) (Tag, error) {
-	splitted := strings.SplitN(tagStr, equals, 2)
+	splitted, err := splitFirstWithOptionalEscapes(tagStr, equals)
+	if err != nil {
+		return Tag{}, err
+	}
+
 	splittedLen := len(splitted)
 
 	if splittedLen == 0 {

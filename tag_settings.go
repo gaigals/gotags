@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 )
 
 // Processor can be used to do some custom stuff for each field (if defined)
@@ -193,7 +192,11 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 			continue
 		}
 
-		tagsSplitted := tg.readTagContent(structField.Tag)
+		tagsSplitted, err := tg.readTagContent(structField.Tag)
+		if err != nil {
+			return nil, fmt.Errorf("field '%s': %w", structField.Name, err)
+		}
+
 		if len(tagsSplitted) == 0 && !tg.IncludeNotTagged {
 			continue
 		}
@@ -246,13 +249,13 @@ func (tg *TagSettings) tryUnpackInterface(valueOf reflect.Value) (reflect.Value,
 	return tg.tryUnpackInterface(valueOf.Elem())
 }
 
-func (tg *TagSettings) readTagContent(tag reflect.StructTag) []string {
+func (tg *TagSettings) readTagContent(tag reflect.StructTag) ([]string, error) {
 	tagString, ok := tag.Lookup(tg.Name)
 	if !ok { // No pkg tag key, ignore this struct field.
-		return nil
+		return nil, nil
 	}
 
-	return strings.Split(tagString, tg.Separator)
+	return splitWithOptionalEscapes(tagString, tg.Separator)
 }
 
 func (tg *TagSettings) convertAsTags(tags []string) ([]Tag, error) {
