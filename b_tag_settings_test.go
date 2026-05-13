@@ -68,9 +68,9 @@ const (
 
 // PAST benchmarks:
 //
-// Benchmark_ParseStruct/NoEscape-4     727275   1440 ns/op   672 B/op
+// Benchmark_ParseStruct/NoEscape-4     821473   1456 ns/op   672 B/op
 // 5 allocs/op
-// Benchmark_ParseStruct/WithEscape-4   331084   3568 ns/op   848 B/op
+// Benchmark_ParseStruct/WithEscape-4   318123   3534 ns/op   848 B/op
 // 19 allocs/op
 func Benchmark_ParseStruct(b *testing.B) {
 	b.Run("NoEscape", func(b *testing.B) {
@@ -98,10 +98,10 @@ func Benchmark_ParseStruct(b *testing.B) {
 
 // PAST benchmarks:
 //
-// Benchmark_NewTagFromString/NoEscape-4    100000000    11.72 ns/op
+// Benchmark_NewTagFromString/NoEscape-4    100000000    11.63 ns/op
 // 0 B/op   0 allocs/op
-// Benchmark_NewTagFromString/WithEscape-4    5202488    235.1 ns/op
-// 56 B/op   2 allocs/op
+// Benchmark_NewTagFromString/WithEscape-4    6461421    185.7 ns/op
+// 24 B/op   1 allocs/op
 func Benchmark_NewTagFromString(b *testing.B) {
 	b.Run("NoEscape", func(b *testing.B) {
 		b.ReportAllocs()

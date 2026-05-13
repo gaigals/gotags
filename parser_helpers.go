@@ -143,6 +143,10 @@ func splitTagKeyValue(input, separator string) (
 	return splitTagKeyValueWithEscape(input, separator, 0)
 }
 
+// splitTagKeyValueWithEscape keeps the old fast path for plain input, then
+// falls back to an escape-aware scan only when the configured escape character
+// is present. It first finds the real key/value separator and only then
+// unescapes the separated parts.
 func splitTagKeyValueWithEscape(
 	input,
 	separator string,
@@ -153,6 +157,7 @@ func splitTagKeyValueWithEscape(
 	hasValue bool,
 	err error,
 ) {
+	// Keep the plain-input path identical to the old parser.
 	if separator != "" && !containsEscapeCharacter(input, escapeCharacter) {
 		index := strings.Index(input, separator)
 		if index < 0 {
@@ -162,19 +167,79 @@ func splitTagKeyValueWithEscape(
 		return input[:index], input[index+len(separator):], true, nil
 	}
 
-	parts, err := splitFirstWithOptionalEscapes(
-		input,
-		separator,
-		escapeCharacter,
-	)
+	// Preserve existing empty-separator behavior through the shared splitter.
+	if separator == "" {
+		parts, err := splitFirstWithOptionalEscapes(
+			input,
+			separator,
+			escapeCharacter,
+		)
+		if err != nil {
+			return "", "", false, err
+		}
+
+		key, value, hasValue = splitPartsToKeyValue(parts)
+		return key, value, hasValue, nil
+	}
+
+	// Find the first real separator while skipping escaped characters.
+	for index := 0; index < len(input); {
+		tokenLength, err := nextEscapedTokenLength(
+			input,
+			index,
+			separator,
+			escapeCharacter,
+		)
+		if err != nil {
+			return "", "", false, err
+		}
+		if tokenLength > 0 {
+			index += 1 + tokenLength
+			continue
+		}
+		if input[index] == escapeCharacter {
+			index++
+			continue
+		}
+
+		if !strings.HasPrefix(input[index:], separator) {
+			index++
+			continue
+		}
+
+		key, err = unescapeReservedCharacters(
+			input[:index],
+			separator,
+			escapeCharacter,
+		)
+		if err != nil {
+			return "", "", false, err
+		}
+
+		value, err = unescapeReservedCharacters(
+			input[index+len(separator):],
+			separator,
+			escapeCharacter,
+		)
+		if err != nil {
+			return "", "", false, err
+		}
+
+		return key, value, true, nil
+	}
+
+	key, err = unescapeReservedCharacters(input, separator, escapeCharacter)
 	if err != nil {
 		return "", "", false, err
 	}
 
-	key, value, hasValue = splitPartsToKeyValue(parts)
-	return key, value, hasValue, nil
+	return key, "", false, nil
 }
 
+// unescapeReservedCharacters returns the original string unchanged unless it
+// finds a supported escape sequence that must be rewritten. This keeps values
+// such as regex `\d` or `\.` intact without paying the cost of rebuilding the
+// string, while still rejecting a trailing naked backslash.
 func unescapeReservedCharacters(
 	input string,
 	separator string,
@@ -184,12 +249,8 @@ func unescapeReservedCharacters(
 		return input, nil
 	}
 
-	var builder strings.Builder
-	builder.Grow(len(input))
-
 	for index := 0; index < len(input); {
 		if input[index] != escapeCharacter {
-			builder.WriteByte(input[index])
 			index++
 			continue
 		}
@@ -203,14 +264,62 @@ func unescapeReservedCharacters(
 			separator,
 			escapeCharacter,
 		)
-		if tokenLength > 0 {
-			builder.WriteString(input[index+1 : index+1+tokenLength])
-			index += 1 + tokenLength
+		if tokenLength == 0 {
+			index++
 			continue
 		}
 
-		builder.WriteByte(input[index])
-		index++
+		// Start rebuilding only after the first supported escape is found.
+		return unescapeReservedCharactersFromIndex(
+			input,
+			index,
+			tokenLength,
+			separator,
+			escapeCharacter,
+		)
+	}
+
+	return input, nil
+}
+
+// Once the first supported escape is found, the rest of the string is rebuilt
+// into a new buffer with only reserved parser escapes unwrapped.
+func unescapeReservedCharactersFromIndex(
+	input string,
+	startIndex int,
+	tokenLength int,
+	separator string,
+	escapeCharacter byte,
+) (string, error) {
+	var builder strings.Builder
+	builder.Grow(len(input))
+	builder.WriteString(input[:startIndex])
+	builder.WriteString(input[startIndex+1 : startIndex+1+tokenLength])
+
+	for index := startIndex + 1 + tokenLength; index < len(input); {
+		if input[index] != escapeCharacter {
+			builder.WriteByte(input[index])
+			index++
+			continue
+		}
+
+		if index+1 >= len(input) {
+			return "", fmt.Errorf("%w in %q", errTrailingBackslash, input)
+		}
+
+		tokenLength = escapedTokenLength(
+			input[index+1:],
+			separator,
+			escapeCharacter,
+		)
+		if tokenLength == 0 {
+			builder.WriteByte(input[index])
+			index++
+			continue
+		}
+
+		builder.WriteString(input[index+1 : index+1+tokenLength])
+		index += 1 + tokenLength
 	}
 
 	return builder.String(), nil

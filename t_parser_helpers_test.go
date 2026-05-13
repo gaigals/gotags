@@ -244,6 +244,30 @@ func Test_ParseStructWithEscapedValues(t *testing.T) {
 		"unexpected notContainsRegex style tag")
 }
 
+func Test_ParseStructWithEscapeCharacterAndRegexEscapesOnly(t *testing.T) {
+	type testStruct struct {
+		Regex string `testtag:"regex=^\\d+\\.\\d+$"`
+	}
+
+	tagSettings := NewTagSettings(
+		"testtag",
+		",",
+		"=",
+		nil,
+		false,
+		NewKey("regex", false, false, nil),
+	)
+	tagSettings.WithEscapeCharacter(testEscapeCharacter)
+
+	fields, err := tagSettings.ParseStruct(&testStruct{})
+	testza.AssertNoError(t, err, "unexpected error")
+	testza.AssertLen(t, fields, 1, "unexpected fields len")
+	testza.AssertEqual(t, fields[0].FirstTag(), Tag{
+		Key:   "regex",
+		Value: `^\d+\.\d+$`,
+	}, "unexpected regex tag")
+}
+
 func Test_ParseStructWithCustomSeparatorsAndEscapes(t *testing.T) {
 	type testStruct struct {
 		Value string `testtag:"replace@old\\#value#requiredIf@Type\\@admin"`
