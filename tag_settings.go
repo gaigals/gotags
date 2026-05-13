@@ -20,6 +20,7 @@ type TagSettings struct {
 	Processor                 // Optional
 	IncludeNotTagged     bool // Include not tagged fields
 	disableKeyValidation bool // Disable key/value support, default false.
+	escapeCharacter      byte
 	keysRequired         []string
 }
 
@@ -57,6 +58,13 @@ func (tg *TagSettings) WithCustomSeparators(separator, equals string) *TagSettin
 // Processor gets called after tag validation.
 func (tg *TagSettings) WithProcessor(processor Processor) *TagSettings {
 	tg.Processor = processor
+	return tg
+}
+
+// WithEscapeCharacter enables optional escape-aware parsing.
+// By default escape parsing is disabled.
+func (tg *TagSettings) WithEscapeCharacter(escapeCharacter byte) *TagSettings {
+	tg.escapeCharacter = escapeCharacter
 	return tg
 }
 
@@ -162,13 +170,11 @@ func (tg *TagSettings) mustValidPtr(valueOfPtr reflect.Value) error {
 }
 
 func (tg *TagSettings) unpackStruct(valueOf reflect.Value) ([]Field, error) {
-	typeOf := reflect.TypeOf(valueOf)
-
-	if typeOf.Kind() != reflect.Struct {
+	if valueOf.Kind() != reflect.Struct {
 		return nil, errors.New("passed value must be pointer of struct")
 	}
 
-	if typeOf.NumField() == 0 {
+	if valueOf.NumField() == 0 {
 		return nil, nil
 	}
 
@@ -181,7 +187,7 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 		return nil, err
 	}
 
-	typeOf := reflect.TypeOf(valueOf.Interface())
+	typeOf := valueOf.Type()
 
 	fields := make([]Field, typeOf.NumField())
 	addedFields := 0
@@ -193,19 +199,16 @@ func (tg *TagSettings) parseFields(valueOf reflect.Value) ([]Field, error) {
 			continue
 		}
 
-		tagsSplitted := tg.readTagContent(structField.Tag)
-		if len(tagsSplitted) == 0 && !tg.IncludeNotTagged {
+		tags, err := tg.readTagContent(structField.Tag)
+		if err != nil {
+			return nil, fmt.Errorf("field '%s': %w", structField.Name, err)
+		}
+
+		if len(tags) == 0 && !tg.IncludeNotTagged {
 			continue
 		}
 
-		var tags []Tag
-
-		if len(tagsSplitted) > 0 {
-			tags, err = tg.convertAsTags(tagsSplitted)
-			if err != nil {
-				return nil, err
-			}
-
+		if len(tags) > 0 {
 			err = tg.validateTags(tags)
 			if err != nil {
 				return nil, fmt.Errorf("field '%s': %w", structField.Name, err)
@@ -246,20 +249,33 @@ func (tg *TagSettings) tryUnpackInterface(valueOf reflect.Value) (reflect.Value,
 	return tg.tryUnpackInterface(valueOf.Elem())
 }
 
-func (tg *TagSettings) readTagContent(tag reflect.StructTag) []string {
+func (tg *TagSettings) readTagContent(tag reflect.StructTag) ([]Tag, error) {
 	tagString, ok := tag.Lookup(tg.Name)
 	if !ok { // No pkg tag key, ignore this struct field.
-		return nil
+		return nil, nil
 	}
 
-	return strings.Split(tagString, tg.Separator)
+	if tg.Separator == "" || containsEscapeCharacter(tagString, tg.escapeCharacter) {
+		tagsSplitted, err := splitWithOptionalEscapes(
+			tagString,
+			tg.Separator,
+			tg.escapeCharacter,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		return tg.convertAsTags(tagsSplitted)
+	}
+
+	return tg.convertTagString(tagString)
 }
 
 func (tg *TagSettings) convertAsTags(tags []string) ([]Tag, error) {
 	tagsSlice := make([]Tag, len(tags))
 
 	for k, v := range tags {
-		tag, err := NewTagFromString(v, tg.Equals)
+		tag, err := newTagFromString(v, tg.Equals, tg.escapeCharacter)
 		if err != nil {
 			return nil, err
 		}
@@ -268,6 +284,38 @@ func (tg *TagSettings) convertAsTags(tags []string) ([]Tag, error) {
 	}
 
 	return tagsSlice, nil
+}
+
+func (tg *TagSettings) convertTagString(tagString string) ([]Tag, error) {
+	tags := make([]Tag, strings.Count(tagString, tg.Separator)+1)
+	startIndex := 0
+
+	for index := 0; index < len(tags)-1; index++ {
+		separatorIndex := strings.Index(tagString[startIndex:], tg.Separator)
+		tag, err := newTagFromString(
+			tagString[startIndex:startIndex+separatorIndex],
+			tg.Equals,
+			tg.escapeCharacter,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		tags[index] = tag
+		startIndex += separatorIndex + len(tg.Separator)
+	}
+
+	tag, err := newTagFromString(
+		tagString[startIndex:],
+		tg.Equals,
+		tg.escapeCharacter,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tags[len(tags)-1] = tag
+	return tags, nil
 }
 
 func (tg *TagSettings) validateTags(tags []Tag) error {
@@ -290,9 +338,9 @@ func (tg *TagSettings) validateTags(tags []Tag) error {
 }
 
 func (tg *TagSettings) findMatchingKey(key string) *Key {
-	for _, v := range tg.Keys {
-		if key == v.Name {
-			return &v
+	for idx := range tg.Keys {
+		if key == tg.Keys[idx].Name {
+			return &tg.Keys[idx]
 		}
 	}
 
@@ -300,6 +348,10 @@ func (tg *TagSettings) findMatchingKey(key string) *Key {
 }
 
 func (tg *TagSettings) hasRequiredKeys(field Field) error {
+	if len(tg.keysRequired) == 0 {
+		return nil
+	}
+
 	for _, v := range tg.keysRequired {
 		if field.HasKey(v) {
 			continue
@@ -313,7 +365,7 @@ func (tg *TagSettings) hasRequiredKeys(field Field) error {
 }
 
 func (tg *TagSettings) requiredKeys() []string {
-	required := make([]string, 0)
+	required := make([]string, 0, len(tg.Keys))
 
 	for _, v := range tg.Keys {
 		if v.IsRequired {

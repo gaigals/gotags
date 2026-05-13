@@ -3,7 +3,6 @@ package gotags
 import (
 	"errors"
 	"fmt"
-	"strings"
 )
 
 type Tag struct {
@@ -12,24 +11,38 @@ type Tag struct {
 }
 
 func NewTagFromString(tagStr, equals string) (Tag, error) {
-	splitted := strings.SplitN(tagStr, equals, 2)
-	splittedLen := len(splitted)
+	return NewTagFromStringWithEscape(tagStr, equals, 0)
+}
 
-	if splittedLen == 0 {
+func NewTagFromStringWithEscape(
+	tagStr,
+	equals string,
+	escapeCharacter byte,
+) (Tag, error) {
+	return newTagFromString(tagStr, equals, escapeCharacter)
+}
+
+func newTagFromString(tagStr, equals string, escapeCharacter byte) (Tag, error) {
+	key, value, hasValue, err := splitTagKeyValueWithEscape(
+		tagStr,
+		equals,
+		escapeCharacter,
+	)
+	if err != nil {
+		return Tag{}, err
+	}
+
+	if key == "" && tagStr == "" {
 		return Tag{}, errors.New("no keys defined")
 	}
 
-	if splittedLen > 2 {
-		return Tag{}, fmt.Errorf("unexpected tagStr format '%s'", tagStr)
-	}
-
 	tag := Tag{
-		Key: splitted[0],
+		Key: key,
 	}
 
 	// If tagStr has value ...
-	if splittedLen == 2 {
-		tag.Value = splitted[1]
+	if hasValue {
+		tag.Value = value
 	}
 
 	return tag, nil

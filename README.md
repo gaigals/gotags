@@ -1,75 +1,200 @@
 # GOTags
 
-API for managing struct tags - defining and parsing.
+Go package for defining, parsing, and processing struct tags.
 
-### Example:
+Define known keys, use custom separators, enable dynamic tags, add
+validators, and run optional processors after parsing.
 
-Create new tag `validator` with tags `required` (bool), `eq` (any), `gt`
-(int) and `lt` (int) with default separator `;` and default equals `;`
+## Install
+
+```bash
+go get github.com/gaigals/gotags@latest
+```
+
+## Example
+
+Default syntax uses `;` between tags and `:` between key/value.
 
 ```go
 package main
 
 import (
-    "log"
-    "reflect"
+	"fmt"
+	"log"
 
-    "github.com/gaigals/gotags"
+	"github.com/gaigals/gotags"
 )
 
 const (
-    tagKeyRequired    = "required"
-    tagKeyEquals      = "eq"
-    tagKeyGreaterThan = "gt"
-    tagKeyLessThan    = "lt"
+	tagKeyRequired = "required"
+	tagKeyEquals   = "eq"
+	tagKeyGT       = "gt"
+	tagKeyLT       = "lt"
 )
 
 var (
-    keyRequired    = gotags.NewKey(tagKeyRequired, true, false, nil)
-    keyEquals      = gotags.NewKey(tagKeyEquals, false, false, nil)
-    keyGreaterThan = gotags.NewKey(tagKeyGreaterThan, false, false, nil)
-    keyLessThan    = gotags.NewKey(tagKeyLessThan, false, false, nil)
+	keyRequired = gotags.NewKey(tagKeyRequired, true, false, nil)
+	keyEquals   = gotags.NewKey(tagKeyEquals, false, false, nil)
+	keyGT       = gotags.NewKey(tagKeyGT, false, false, nil)
+	keyLT       = gotags.NewKey(tagKeyLT, false, false, nil)
 )
 
-// Default separator (;), default equals (:)
-var tagSettings = gotags.NewTagSettingsDefault(
-    "validator",
-    tagProcessor, // Optional - can be nil
-    keyRequired,
-    keyEquals,
-    keyGreaterThan,
-    keyLessThan,
+// Default separator (;), default equals (:).
+var settings = gotags.NewTagSettingsDefault(
+	"validator",
+	tagProcessor, // Optional - can be nil.
+	keyRequired,
+	keyEquals,
+	keyGT,
+	keyLT,
 )
 
-type MyData struct {
-    Name    string `validator:"required"`
-    Age     uint   `validator:"gt:10;lt:130"`
-    Country string `validator:"eq:Latvia"`
+type User struct {
+	Name    string `validator:"required"`
+	Age     uint   `validator:"gt:10;lt:130"`
+	Country string `validator:"eq:Latvia"`
 }
 
-// Will return error on TagSettings.ParseStruct() if fails.
 func tagProcessor(field gotags.Field) error {
-    // Do some custom stuff for each field if required.
-    // ...
-    return nil
+	// Optional: runs after parsing and validation.
+	// Use it for extra checks, transforms, or side effects.
+	return nil
 }
 
 func main() {
-    myData := MyData{
-        Name:    "John",
-        Age:     22,
-        Country: "Latvia",
-    }
+	user := User{
+		Name:    "John",
+		Age:     22,
+		Country: "Latvia",
+	}
 
-    // Parses all tags, triggers field processor if defined and validators
-    // if defined.
-    fields, err := tagSettings.ParseStruct(&myData)
-    if err != nil {
-        log.Fatalln(err)
-    }
+	fields, err := settings.ParseStruct(&user)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
-    // Do some additional stuff with fields if required.
-    // ...
+	for _, field := range fields {
+		fmt.Println(field.Name)
+		for _, tag := range field.Tags {
+			fmt.Printf("  %s = %q\n", tag.Key, tag.Value)
+		}
+	}
+
+	// Name
+	//   required = ""
+	// Age
+	//   gt = "10"
+	//   lt = "130"
+	// Country
+	//   eq = "Latvia"
+}
+```
+
+## Setup
+
+```go
+gotags.NewSettings("validator")
+gotags.NewSettings("validator").WithEscapeCharacter('\\')
+defaultSettings := gotags.NewTagSettingsDefault("validator", nil, keys...)
+defaultSettings.WithEscapeCharacter('\\')
+gotags.NewTagSettings("validator", ",", "=", nil, false, keys...)
+```
+
+- `WithProcessor(fn)` runs after parsing each field.
+- `IncludeUntaggedFields()` keeps exported fields without the tag.
+- `WithNoKeyExistValidation()` allows tags with keys not registered up front.
+- `WithEscapeCharacter('\\')` enables escape parsing.
+
+## Custom Separators
+
+```go
+var settings = gotags.NewSettings("gotags").
+	WithCustomSeparators(",", "=").
+	AddKeys(
+		gotags.NewKey("required", true, false, nil),
+		gotags.NewKey("min", false, false, nil),
+		gotags.NewKey("max", false, false, nil),
+	)
+
+type User struct {
+	Name string `gotags:"required,min=2,max=255"`
+}
+```
+
+## Dynamic Tags
+
+```go
+var settings = gotags.NewSettings("myTag").
+	WithNoKeyExistValidation()
+
+type Item struct {
+	Value string `myTag:"rawValue"`
 }
 
+// Tag{Key: "rawValue", Value: ""}
+```
+
+## Direct Tag Parsing
+
+Use this when you already have one tag string and do not need
+`ParseStruct`.\
+Useful in tests, custom loaders, generators, or config-driven parsing.
+
+```go
+tag, err := gotags.NewTagFromString("min:2", ":")
+
+escapedTag, err := gotags.NewTagFromStringWithEscape(
+	`replace=old\,value|new\|value`,
+	"=",
+	'\\',
+)
+```
+
+## Escaping
+
+Escaping is off by default.\
+Enable it per `TagSettings` only when values need parser syntax chars.
+It also works with custom separators and custom equals chars.
+
+```go
+var validatorSettings = gotags.NewSettings("validator").
+	WithEscapeCharacter('\\')
+
+var gotagsSettings = gotags.NewSettings("gotags").
+	WithCustomSeparators(",", "=").
+	WithEscapeCharacter('\\')
+
+type Rules struct {
+	Regex      string `validator:"regex:^foo\,bar$"`
+	RegexDots  string `validator:"regex:^\d+\.\d+$"`
+	Replace    string `gotags:"replace=old\,value|new\|value"`
+	RequiredIf string `gotags:"requiredIf=Type:admin\|user|Role"`
+}
+```
+
+- `\\` => `\`
+- `\,` => `,`
+- `\|` => `|`
+- `\:` => `:`
+- `\=` => `=`
+- unknown escapes stay as-is: `\d`, `\w`, `\.`
+- trailing naked `\` returns an error
+
+## Useful Field Helpers
+
+```go
+// Check whether a parsed field contains a specific tag key.
+field.HasKey("required")
+
+// Get a tag value by key. Missing keys return an empty string.
+field.KeyValue("gt")
+
+// Get both the tag value and whether that key was found.
+value, ok := field.KeyValueBool("gt")
+
+// Read the first parsed tag on the field.
+tag := field.FirstTag()
+
+// Update the struct field value through reflection.
+err := field.SetValue("new value")
 ```
