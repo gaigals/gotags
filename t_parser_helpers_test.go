@@ -9,17 +9,17 @@ import (
 
 const testEscapeCharacter = '\\'
 
-func Test_SplitWithOptionalEscapes(t *testing.T) {
+func Test_SplitWithEscape(t *testing.T) {
 	t.Run("No backslashes matches strings split", func(t *testing.T) {
 		input := "min=1,max=10"
 
-		actual, err := splitWithOptionalEscapes(input, ",", 0)
+		actual, err := SplitWithEscape(input, ",", 0)
 		testza.AssertNoError(t, err, "unexpected error")
 		testza.AssertEqual(t, actual, strings.Split(input, ","), "unexpected split result")
 	})
 
 	t.Run("Escaped separator does not split", func(t *testing.T) {
-		actual, err := splitWithOptionalEscapes(
+		actual, err := SplitWithEscape(
 			`one,two\,three,four`,
 			",",
 			testEscapeCharacter,
@@ -29,28 +29,39 @@ func Test_SplitWithOptionalEscapes(t *testing.T) {
 			"unexpected split result")
 	})
 
+	t.Run("Inner escapes stay untouched at top level", func(t *testing.T) {
+		actual, err := SplitWithEscape(
+			`replace=old\,value|new\|value`,
+			",",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, actual, []string{`replace=old,value|new\|value`},
+			"unexpected split result")
+	})
+
 	t.Run("Escaped backslash is preserved", func(t *testing.T) {
-		actual, err := splitWithOptionalEscapes(`one\\,two`, ",", testEscapeCharacter)
+		actual, err := SplitWithEscape(`one\\,two`, ",", testEscapeCharacter)
 		testza.AssertNoError(t, err, "unexpected error")
 		testza.AssertEqual(t, actual, []string{`one\`, "two"},
 			"unexpected split result")
 	})
 
 	t.Run("Unknown escapes remain untouched", func(t *testing.T) {
-		actual, err := splitWithOptionalEscapes(`^\d+\.\d+$`, ",", testEscapeCharacter)
+		actual, err := SplitWithEscape(`^\d+\.\d+$`, ",", testEscapeCharacter)
 		testza.AssertNoError(t, err, "unexpected error")
 		testza.AssertEqual(t, actual, []string{`^\d+\.\d+$`},
 			"unexpected split result")
 	})
 
 	t.Run("Trailing naked backslash returns error", func(t *testing.T) {
-		actual, err := splitWithOptionalEscapes(`one,two\`, ",", testEscapeCharacter)
+		actual, err := SplitWithEscape(`one,two\`, ",", testEscapeCharacter)
 		testza.AssertNotNil(t, err, "expected error")
 		testza.AssertNil(t, actual, "expected no split result")
 	})
 
 	t.Run("Value list splitting respects escaped pipes", func(t *testing.T) {
-		actual, err := splitWithOptionalEscapes(
+		actual, err := SplitWithEscape(
 			`part1|part2\|part3|part4`,
 			"|",
 			testEscapeCharacter,
@@ -61,7 +72,7 @@ func Test_SplitWithOptionalEscapes(t *testing.T) {
 	})
 
 	t.Run("Custom separator does not split when escaped", func(t *testing.T) {
-		actual, err := splitWithOptionalEscapes(
+		actual, err := SplitWithEscape(
 			`one#two\#three#four`,
 			"#",
 			testEscapeCharacter,
@@ -71,48 +82,72 @@ func Test_SplitWithOptionalEscapes(t *testing.T) {
 			"unexpected split result")
 	})
 
+	t.Run("Custom separator keeps deeper custom equals escapes", func(t *testing.T) {
+		actual, err := SplitWithEscape(
+			`requiredIf@Type\@admin#replace@old\#value`,
+			"#",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, actual, []string{
+			`requiredIf@Type\@admin`,
+			`replace@old#value`,
+		}, "unexpected split result")
+	})
+
 	t.Run("Escape disabled keeps backslashes literal", func(t *testing.T) {
-		actual, err := splitWithOptionalEscapes(`one,two\,three,four`, ",", 0)
+		actual, err := SplitWithEscape(`one,two\,three,four`, ",", 0)
 		testza.AssertNoError(t, err, "unexpected error")
 		testza.AssertEqual(t, actual, []string{"one", `two\`, "three", "four"},
 			"unexpected split result")
 	})
 }
 
-func Test_SplitFirstWithOptionalEscapes(t *testing.T) {
+func Test_SplitFirstWithEscape(t *testing.T) {
 	t.Run("No backslashes matches strings splitn", func(t *testing.T) {
 		input := "value=Test1"
 
-		actual, err := splitFirstWithOptionalEscapes(input, "=", 0)
+		actual, err := SplitFirstWithEscape(input, "=", 0)
 		testza.AssertNoError(t, err, "unexpected error")
 		testza.AssertEqual(t, actual, strings.SplitN(input, "=", 2),
 			"unexpected split result")
 	})
 
-	t.Run("Escaped equals stays in value", func(t *testing.T) {
-		actual, err := splitFirstWithOptionalEscapes(
-			`Key:value\=x`,
+	t.Run("Current separator stays in value", func(t *testing.T) {
+		actual, err := SplitFirstWithEscape(
+			`Key:value\:x`,
 			":",
 			testEscapeCharacter,
 		)
 		testza.AssertNoError(t, err, "unexpected error")
-		testza.AssertEqual(t, actual, []string{"Key", "value=x"},
+		testza.AssertEqual(t, actual, []string{"Key", "value:x"},
 			"unexpected split result")
 	})
 
 	t.Run("Parameterized value keeps escaped pipes", func(t *testing.T) {
-		actual, err := splitFirstWithOptionalEscapes(
+		actual, err := SplitFirstWithEscape(
 			`Type:admin\|user|Role`,
 			":",
 			testEscapeCharacter,
 		)
 		testza.AssertNoError(t, err, "unexpected error")
-		testza.AssertEqual(t, actual, []string{"Type", "admin|user|Role"},
+		testza.AssertEqual(t, actual, []string{"Type", `admin\|user|Role`},
+			"unexpected split result")
+	})
+
+	t.Run("Inner escapes stay untouched at current layer", func(t *testing.T) {
+		actual, err := SplitFirstWithEscape(
+			`Key:value\=x`,
+			":",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, actual, []string{"Key", `value\=x`},
 			"unexpected split result")
 	})
 
 	t.Run("URL style values keep escaped colons", func(t *testing.T) {
-		actual, err := splitFirstWithOptionalEscapes(
+		actual, err := SplitFirstWithEscape(
 			`URL:https\://example.com`,
 			":",
 			testEscapeCharacter,
@@ -123,13 +158,24 @@ func Test_SplitFirstWithOptionalEscapes(t *testing.T) {
 	})
 
 	t.Run("Custom equals stays in value when escaped", func(t *testing.T) {
-		actual, err := splitFirstWithOptionalEscapes(
+		actual, err := SplitFirstWithEscape(
 			`Key@value\@x`,
 			"@",
 			testEscapeCharacter,
 		)
 		testza.AssertNoError(t, err, "unexpected error")
 		testza.AssertEqual(t, actual, []string{"Key", "value@x"},
+			"unexpected split result")
+	})
+
+	t.Run("Custom equals keeps deeper pipe escapes", func(t *testing.T) {
+		actual, err := SplitFirstWithEscape(
+			`requiredIf@Type\@admin\|user|Role`,
+			"@",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, actual, []string{"requiredIf", `Type@admin\|user|Role`},
 			"unexpected split result")
 	})
 }
@@ -144,7 +190,7 @@ func Test_NewTagFromStringWithEscape(t *testing.T) {
 		}, "unexpected tag")
 	})
 
-	t.Run("Escape enabled unescapes reserved characters", func(t *testing.T) {
+	t.Run("Escape enabled preserves inner escapes", func(t *testing.T) {
 		tag, err := NewTagFromStringWithEscape(
 			`replace=old\,value|new\|value`,
 			"=",
@@ -153,7 +199,20 @@ func Test_NewTagFromStringWithEscape(t *testing.T) {
 		testza.AssertNoError(t, err, "unexpected error")
 		testza.AssertEqual(t, tag, Tag{
 			Key:   "replace",
-			Value: "old,value|new|value",
+			Value: `old\,value|new\|value`,
+		}, "unexpected tag")
+	})
+
+	t.Run("Escape enabled unescapes current separator", func(t *testing.T) {
+		tag, err := NewTagFromStringWithEscape(
+			`regex=^test\=value$`,
+			"=",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, tag, Tag{
+			Key:   "regex",
+			Value: "^test=value$",
 		}, "unexpected tag")
 	})
 
@@ -190,6 +249,19 @@ func Test_NewTagFromStringWithEscape(t *testing.T) {
 		testza.AssertEqual(t, tag, Tag{
 			Key:   "requiredIf",
 			Value: "Type@admin",
+		}, "unexpected tag")
+	})
+
+	t.Run("Custom equals preserves deeper escapes", func(t *testing.T) {
+		tag, err := NewTagFromStringWithEscape(
+			`requiredIf@Type\@admin\|user|Role`,
+			"@",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, tag, Tag{
+			Key:   "requiredIf",
+			Value: `Type@admin\|user|Role`,
 		}, "unexpected tag")
 	})
 }
@@ -234,11 +306,11 @@ func Test_ParseStructWithEscapedValues(t *testing.T) {
 		"unexpected regex tag")
 	testza.AssertEqual(t, fields[2].FirstTag(), Tag{Key: "regex", Value: `^\d+\.\d+$`},
 		"unexpected regex tag")
-	testza.AssertEqual(t, fields[3].FirstTag(), Tag{Key: "regexCount", Value: "a|b|2"},
+	testza.AssertEqual(t, fields[3].FirstTag(), Tag{Key: "regexCount", Value: `a\|b|2`},
 		"unexpected regexCount tag")
-	testza.AssertEqual(t, fields[4].FirstTag(), Tag{Key: "replace", Value: "old,value|new|value"},
+	testza.AssertEqual(t, fields[4].FirstTag(), Tag{Key: "replace", Value: `old,value|new\|value`},
 		"unexpected replace tag")
-	testza.AssertEqual(t, fields[5].FirstTag(), Tag{Key: "requiredIf", Value: "Type:admin|user|Role"},
+	testza.AssertEqual(t, fields[5].FirstTag(), Tag{Key: "requiredIf", Value: `Type:admin\|user|Role`},
 		"unexpected requiredIf tag")
 	testza.AssertEqual(t, fields[6].FirstTag(), Tag{Key: "notContainsRegex", Value: "^test=value$"},
 		"unexpected notContainsRegex style tag")

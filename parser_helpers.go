@@ -8,6 +8,29 @@ import (
 
 var errTrailingBackslash = errors.New("trailing naked backslash")
 
+// SplitWithEscape splits by the current layer separator while respecting the
+// configured escape character. It only unescapes the current separator and
+// escaped backslashes, leaving deeper escapes for later parsing layers.
+func SplitWithEscape(
+	input,
+	separator string,
+	escapeCharacter byte,
+) ([]string, error) {
+	return splitWithOptionalEscapes(input, separator, escapeCharacter)
+}
+
+// SplitFirstWithEscape splits by the first current layer separator while
+// respecting the configured escape character. It only unescapes the current
+// separator and escaped backslashes, leaving deeper escapes for later parsing
+// layers.
+func SplitFirstWithEscape(
+	input,
+	separator string,
+	escapeCharacter byte,
+) ([]string, error) {
+	return splitFirstWithOptionalEscapes(input, separator, escapeCharacter)
+}
+
 func splitWithOptionalEscapes(
 	input,
 	separator string,
@@ -41,7 +64,7 @@ func splitEscaped(
 	parts := make([]string, 0, strings.Count(input, separator)+1)
 
 	for index := 0; index < len(input); {
-		tokenLength, err := nextEscapedTokenLength(
+		tokenLength, err := nextCurrentLayerEscapedTokenLength(
 			input,
 			index,
 			separator,
@@ -64,7 +87,7 @@ func splitEscaped(
 			continue
 		}
 
-		part, err := unescapeReservedCharacters(
+		part, err := unescapeCurrentLayerCharacters(
 			input[startIndex:index],
 			separator,
 			escapeCharacter,
@@ -78,7 +101,7 @@ func splitEscaped(
 		startIndex = index
 	}
 
-	part, err := unescapeReservedCharacters(
+	part, err := unescapeCurrentLayerCharacters(
 		input[startIndex:],
 		separator,
 		escapeCharacter,
@@ -96,7 +119,7 @@ func splitFirstEscaped(
 	escapeCharacter byte,
 ) ([]string, error) {
 	for index := 0; index < len(input); {
-		tokenLength, err := nextEscapedTokenLength(
+		tokenLength, err := nextCurrentLayerEscapedTokenLength(
 			input,
 			index,
 			separator,
@@ -122,7 +145,7 @@ func splitFirstEscaped(
 		return unescapeSplitParts(input, index, separator, escapeCharacter)
 	}
 
-	unescaped, err := unescapeReservedCharacters(
+	unescaped, err := unescapeCurrentLayerCharacters(
 		input,
 		separator,
 		escapeCharacter,
@@ -146,7 +169,7 @@ func splitTagKeyValue(input, separator string) (
 // splitTagKeyValueWithEscape keeps the old fast path for plain input, then
 // falls back to an escape-aware scan only when the configured escape character
 // is present. It first finds the real key/value separator and only then
-// unescapes the separated parts.
+// unescapes only the current layer (`\\` and the active equals token).
 func splitTagKeyValueWithEscape(
 	input,
 	separator string,
@@ -184,7 +207,7 @@ func splitTagKeyValueWithEscape(
 
 	// Find the first real separator while skipping escaped characters.
 	for index := 0; index < len(input); {
-		tokenLength, err := nextEscapedTokenLength(
+		tokenLength, err := nextCurrentLayerEscapedTokenLength(
 			input,
 			index,
 			separator,
@@ -207,7 +230,7 @@ func splitTagKeyValueWithEscape(
 			continue
 		}
 
-		key, err = unescapeReservedCharacters(
+		key, err = unescapeCurrentLayerCharacters(
 			input[:index],
 			separator,
 			escapeCharacter,
@@ -216,7 +239,7 @@ func splitTagKeyValueWithEscape(
 			return "", "", false, err
 		}
 
-		value, err = unescapeReservedCharacters(
+		value, err = unescapeCurrentLayerCharacters(
 			input[index+len(separator):],
 			separator,
 			escapeCharacter,
@@ -228,7 +251,7 @@ func splitTagKeyValueWithEscape(
 		return key, value, true, nil
 	}
 
-	key, err = unescapeReservedCharacters(input, separator, escapeCharacter)
+	key, err = unescapeCurrentLayerCharacters(input, separator, escapeCharacter)
 	if err != nil {
 		return "", "", false, err
 	}
@@ -236,11 +259,11 @@ func splitTagKeyValueWithEscape(
 	return key, "", false, nil
 }
 
-// unescapeReservedCharacters returns the original string unchanged unless it
-// finds a supported escape sequence that must be rewritten. This keeps values
-// such as regex `\d` or `\.` intact without paying the cost of rebuilding the
-// string, while still rejecting a trailing naked backslash.
-func unescapeReservedCharacters(
+// unescapeCurrentLayerCharacters returns the original string unchanged unless
+// it finds an escape that belongs to the current layer. This keeps deeper
+// escapes intact until a later parser chooses to use them, while still
+// rejecting a trailing naked backslash.
+func unescapeCurrentLayerCharacters(
 	input string,
 	separator string,
 	escapeCharacter byte,
@@ -259,7 +282,7 @@ func unescapeReservedCharacters(
 			return "", fmt.Errorf("%w in %q", errTrailingBackslash, input)
 		}
 
-		tokenLength := escapedTokenLength(
+		tokenLength := currentLayerEscapedTokenLength(
 			input[index+1:],
 			separator,
 			escapeCharacter,
@@ -270,7 +293,7 @@ func unescapeReservedCharacters(
 		}
 
 		// Start rebuilding only after the first supported escape is found.
-		return unescapeReservedCharactersFromIndex(
+		return unescapeCurrentLayerCharactersFromIndex(
 			input,
 			index,
 			tokenLength,
@@ -282,9 +305,9 @@ func unescapeReservedCharacters(
 	return input, nil
 }
 
-// Once the first supported escape is found, the rest of the string is rebuilt
-// into a new buffer with only reserved parser escapes unwrapped.
-func unescapeReservedCharactersFromIndex(
+// Once the first current-layer escape is found, rebuild the rest of the string
+// and unwrap only the active separator/equals token and escaped backslashes.
+func unescapeCurrentLayerCharactersFromIndex(
 	input string,
 	startIndex int,
 	tokenLength int,
@@ -307,7 +330,7 @@ func unescapeReservedCharactersFromIndex(
 			return "", fmt.Errorf("%w in %q", errTrailingBackslash, input)
 		}
 
-		tokenLength = escapedTokenLength(
+		tokenLength = currentLayerEscapedTokenLength(
 			input[index+1:],
 			separator,
 			escapeCharacter,
@@ -325,7 +348,7 @@ func unescapeReservedCharactersFromIndex(
 	return builder.String(), nil
 }
 
-func escapedTokenLength(
+func currentLayerEscapedTokenLength(
 	input,
 	separator string,
 	escapeCharacter byte,
@@ -338,15 +361,14 @@ func escapedTokenLength(
 		return len(separator)
 	}
 
-	switch input[0] {
-	case escapeCharacter, ',', '|', ':', '=':
+	if input[0] == escapeCharacter {
 		return 1
-	default:
-		return 0
 	}
+
+	return 0
 }
 
-func nextEscapedTokenLength(
+func nextCurrentLayerEscapedTokenLength(
 	input string,
 	index int,
 	separator string,
@@ -360,7 +382,11 @@ func nextEscapedTokenLength(
 		return 0, fmt.Errorf("%w in %q", errTrailingBackslash, input)
 	}
 
-	return escapedTokenLength(input[index+1:], separator, escapeCharacter), nil
+	return currentLayerEscapedTokenLength(
+		input[index+1:],
+		separator,
+		escapeCharacter,
+	), nil
 }
 
 func unescapeSplitParts(
@@ -369,7 +395,7 @@ func unescapeSplitParts(
 	separator string,
 	escapeCharacter byte,
 ) ([]string, error) {
-	before, err := unescapeReservedCharacters(
+	before, err := unescapeCurrentLayerCharacters(
 		input[:index],
 		separator,
 		escapeCharacter,
@@ -378,7 +404,7 @@ func unescapeSplitParts(
 		return nil, err
 	}
 
-	after, err := unescapeReservedCharacters(
+	after, err := unescapeCurrentLayerCharacters(
 		input[index+len(separator):],
 		separator,
 		escapeCharacter,

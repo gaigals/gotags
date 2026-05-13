@@ -148,6 +148,41 @@ escapedTag, err := gotags.NewTagFromStringWithEscape(
 	"=",
 	'\\',
 )
+
+// escapedTag.Value == `old\,value|new\|value`
+```
+
+## Deeper Value Parsing
+
+Use these when `Tag.Value` has another parsing layer and you want the same\
+escape rules as `gotags`.
+
+```go
+parts, err := gotags.SplitWithEscape(
+	`old\,value|new\|value`,
+	"|",
+	'\\',
+)
+
+fmt.Println(parts[0])
+fmt.Println(parts[1])
+
+// old\,value
+// new|value
+```
+
+```go
+parts, err := gotags.SplitFirstWithEscape(
+	`requiredIf:Type\:admin\|user|Role`,
+	":",
+	'\\',
+)
+
+fmt.Println(parts[0])
+fmt.Println(parts[1])
+
+// requiredIf
+// Type:admin\|user|Role
 ```
 
 ## Escaping
@@ -173,10 +208,9 @@ type Rules struct {
 ```
 
 - `\\` => `\`
-- `\,` => `,`
-- `\|` => `|`
-- `\:` => `:`
-- `\=` => `=`
+- escaped current layer separator is returned unescaped
+- escaped current layer equals is returned unescaped
+- deeper escapes stay as-is in `Tag.Value`: `\|`, `\:`, `\,`, `\=`
 - unknown escapes stay as-is: `\d`, `\w`, `\.`
 - trailing naked `\` returns an error
 
