@@ -82,6 +82,19 @@ func Test_SplitWithOptionalEscapes(t *testing.T) {
 			"unexpected split result")
 	})
 
+	t.Run("Custom separator keeps deeper custom equals escapes", func(t *testing.T) {
+		actual, err := splitWithOptionalEscapes(
+			`requiredIf@Type\@admin#replace@old\#value`,
+			"#",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, actual, []string{
+			`requiredIf@Type\@admin`,
+			`replace@old#value`,
+		}, "unexpected split result")
+	})
+
 	t.Run("Escape disabled keeps backslashes literal", func(t *testing.T) {
 		actual, err := splitWithOptionalEscapes(`one,two\,three,four`, ",", 0)
 		testza.AssertNoError(t, err, "unexpected error")
@@ -152,6 +165,17 @@ func Test_SplitFirstWithOptionalEscapes(t *testing.T) {
 		)
 		testza.AssertNoError(t, err, "unexpected error")
 		testza.AssertEqual(t, actual, []string{"Key", "value@x"},
+			"unexpected split result")
+	})
+
+	t.Run("Custom equals keeps deeper pipe escapes", func(t *testing.T) {
+		actual, err := splitFirstWithOptionalEscapes(
+			`requiredIf@Type\@admin\|user|Role`,
+			"@",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, actual, []string{"requiredIf", `Type@admin\|user|Role`},
 			"unexpected split result")
 	})
 }
@@ -225,6 +249,19 @@ func Test_NewTagFromStringWithEscape(t *testing.T) {
 		testza.AssertEqual(t, tag, Tag{
 			Key:   "requiredIf",
 			Value: "Type@admin",
+		}, "unexpected tag")
+	})
+
+	t.Run("Custom equals preserves deeper escapes", func(t *testing.T) {
+		tag, err := NewTagFromStringWithEscape(
+			`requiredIf@Type\@admin\|user|Role`,
+			"@",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, tag, Tag{
+			Key:   "requiredIf",
+			Value: `Type@admin\|user|Role`,
 		}, "unexpected tag")
 	})
 }
