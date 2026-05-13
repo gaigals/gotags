@@ -1,6 +1,9 @@
 # GOTags
 
-Parse struct tags into `[]Field`.
+Go package for defining, parsing, and processing struct tags.
+
+Define known keys, use custom separators, enable dynamic tags, add
+validators, and run optional processors after parsing.
 
 ## Install
 
@@ -87,21 +90,19 @@ func main() {
 }
 ```
 
-
-Parse with `ParseStruct(&value)`.
-
 ## Setup
 
 ```go
 gotags.NewSettings("validator")
 gotags.NewSettings("validator").WithEscapeCharacter('\\')
-gotags.NewTagSettingsDefault("validator", nil, keys...)
+defaultSettings := gotags.NewTagSettingsDefault("validator", nil, keys...)
+defaultSettings.WithEscapeCharacter('\\')
 gotags.NewTagSettings("validator", ",", "=", nil, false, keys...)
 ```
 
-- `WithProcessor(fn)` runs after validation.
+- `WithProcessor(fn)` runs after parsing each field.
 - `IncludeUntaggedFields()` keeps exported fields without the tag.
-- `WithNoKeyExistValidation()` accepts dynamic tags.
+- `WithNoKeyExistValidation()` allows tags with keys not registered up front.
 - `WithEscapeCharacter('\\')` enables escape parsing.
 
 ## Custom Separators
@@ -134,6 +135,10 @@ type Item struct {
 ```
 
 ## Direct Tag Parsing
+
+Use this when you already have one tag string and do not need
+`ParseStruct`.\
+Useful in tests, custom loaders, generators, or config-driven parsing.
 
 ```go
 tag, err := gotags.NewTagFromString("min:2", ":")
