@@ -148,6 +148,8 @@ escapedTag, err := gotags.NewTagFromStringWithEscape(
 	"=",
 	'\\',
 )
+
+// escapedTag.Value == `old\,value|new\|value`
 ```
 
 ## Escaping
@@ -173,10 +175,9 @@ type Rules struct {
 ```
 
 - `\\` => `\`
-- `\,` => `,`
-- `\|` => `|`
-- `\:` => `:`
-- `\=` => `=`
+- escaped current gotags separator is returned unescaped
+- escaped current equals is returned unescaped
+- deeper escapes stay as-is in `Tag.Value`: `\|`, `\:`, `\,`, `\=`
 - unknown escapes stay as-is: `\d`, `\w`, `\.`
 - trailing naked `\` returns an error
 
