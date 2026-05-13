@@ -45,6 +45,23 @@ var benchmarkParseStructSettingsNoEscape = NewTagSettings(
 	NewKey("phone", true, false, nil),
 )
 
+var benchmarkParseStructSettingsEscapeEnabledNoEscapes = func() TagSettings {
+	tagSettings := NewTagSettings(
+		"gotags",
+		",",
+		"=",
+		nil,
+		false,
+		NewKey("required", true, false, nil),
+		NewKey("min", false, false, nil),
+		NewKey("max", false, false, nil),
+		NewKey("country", true, false, nil),
+		NewKey("phone", true, false, nil),
+	)
+	tagSettings.WithEscapeCharacter('\\')
+	return tagSettings
+}()
+
 var benchmarkParseStructSettingsWithEscape = func() TagSettings {
 	tagSettings := NewTagSettings(
 		"gotags",
@@ -68,10 +85,14 @@ const (
 
 // PAST benchmarks:
 //
-// Benchmark_ParseStruct/NoEscape-4     821473   1456 ns/op   672 B/op
-// 5 allocs/op
-// Benchmark_ParseStruct/WithEscape-4   318123   3534 ns/op   848 B/op
-// 19 allocs/op
+// Benchmark_ParseStruct/NoEscape-4
+// 849618 1326 ns/op 672 B/op 5 allocs/op
+//
+// Benchmark_ParseStruct/EscapeEnabledNoEscapesInInput-4
+// 821574 1407 ns/op 672 B/op 5 allocs/op
+//
+// Benchmark_ParseStruct/WithEscape-4
+// 333302 3416 ns/op 848 B/op 19 allocs/op
 func Benchmark_ParseStruct(b *testing.B) {
 	b.Run("NoEscape", func(b *testing.B) {
 		b.ReportAllocs()
@@ -79,6 +100,17 @@ func Benchmark_ParseStruct(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			_, _ = benchmarkParseStructSettingsNoEscape.ParseStruct(
+				&benchmarkParseStructValueNoEscape,
+			)
+		}
+	})
+
+	b.Run("EscapeEnabledNoEscapesInInput", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			_, _ = benchmarkParseStructSettingsEscapeEnabledNoEscapes.ParseStruct(
 				&benchmarkParseStructValueNoEscape,
 			)
 		}
@@ -98,10 +130,14 @@ func Benchmark_ParseStruct(b *testing.B) {
 
 // PAST benchmarks:
 //
-// Benchmark_NewTagFromString/NoEscape-4    100000000    11.63 ns/op
-// 0 B/op   0 allocs/op
-// Benchmark_NewTagFromString/WithEscape-4    6461421    185.7 ns/op
-// 24 B/op   1 allocs/op
+// Benchmark_NewTagFromString/NoEscape-4
+// 100000000 12.20 ns/op 0 B/op 0 allocs/op
+//
+// Benchmark_NewTagFromString/EscapeEnabledNoEscapesInInput-4
+// 78597994 15.23 ns/op 0 B/op 0 allocs/op
+//
+// Benchmark_NewTagFromString/WithEscape-4
+// 6247116 188.9 ns/op 24 B/op 1 allocs/op
 func Benchmark_NewTagFromString(b *testing.B) {
 	b.Run("NoEscape", func(b *testing.B) {
 		b.ReportAllocs()
@@ -109,6 +145,19 @@ func Benchmark_NewTagFromString(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			_, _ = NewTagFromString(benchmarkTagStringNoEscape, "=")
+		}
+	})
+
+	b.Run("EscapeEnabledNoEscapesInInput", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			_, _ = NewTagFromStringWithEscape(
+				benchmarkTagStringNoEscape,
+				"=",
+				'\\',
+			)
 		}
 	})
 
