@@ -8,6 +8,29 @@ import (
 
 var errTrailingBackslash = errors.New("trailing naked backslash")
 
+// SplitWithEscape splits by the current layer separator while respecting the
+// configured escape character. It only unescapes the current separator and
+// escaped backslashes, leaving deeper escapes for later parsing layers.
+func SplitWithEscape(
+	input,
+	separator string,
+	escapeCharacter byte,
+) ([]string, error) {
+	return splitWithOptionalEscapes(input, separator, escapeCharacter)
+}
+
+// SplitFirstWithEscape splits by the first current layer separator while
+// respecting the configured escape character. It only unescapes the current
+// separator and escaped backslashes, leaving deeper escapes for later parsing
+// layers.
+func SplitFirstWithEscape(
+	input,
+	separator string,
+	escapeCharacter byte,
+) ([]string, error) {
+	return splitFirstWithOptionalEscapes(input, separator, escapeCharacter)
+}
+
 func splitWithOptionalEscapes(
 	input,
 	separator string,
