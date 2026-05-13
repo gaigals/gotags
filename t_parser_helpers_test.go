@@ -60,6 +60,17 @@ func Test_SplitWithOptionalEscapes(t *testing.T) {
 			"unexpected split result")
 	})
 
+	t.Run("Custom separator does not split when escaped", func(t *testing.T) {
+		actual, err := splitWithOptionalEscapes(
+			`one#two\#three#four`,
+			"#",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, actual, []string{"one", "two#three", "four"},
+			"unexpected split result")
+	})
+
 	t.Run("Escape disabled keeps backslashes literal", func(t *testing.T) {
 		actual, err := splitWithOptionalEscapes(`one,two\,three,four`, ",", 0)
 		testza.AssertNoError(t, err, "unexpected error")
@@ -110,6 +121,17 @@ func Test_SplitFirstWithOptionalEscapes(t *testing.T) {
 		testza.AssertEqual(t, actual, []string{"URL", "https://example.com"},
 			"unexpected split result")
 	})
+
+	t.Run("Custom equals stays in value when escaped", func(t *testing.T) {
+		actual, err := splitFirstWithOptionalEscapes(
+			`Key@value\@x`,
+			"@",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, actual, []string{"Key", "value@x"},
+			"unexpected split result")
+	})
 }
 
 func Test_NewTagFromStringWithEscape(t *testing.T) {
@@ -156,6 +178,19 @@ func Test_NewTagFromStringWithEscape(t *testing.T) {
 		)
 		testza.AssertNotNil(t, err, "expected error")
 		testza.AssertEqual(t, tag, Tag{}, "unexpected tag")
+	})
+
+	t.Run("Custom equals works with escape", func(t *testing.T) {
+		tag, err := NewTagFromStringWithEscape(
+			`requiredIf@Type\@admin`,
+			"@",
+			testEscapeCharacter,
+		)
+		testza.AssertNoError(t, err, "unexpected error")
+		testza.AssertEqual(t, tag, Tag{
+			Key:   "requiredIf",
+			Value: "Type@admin",
+		}, "unexpected tag")
 	})
 }
 
@@ -207,4 +242,29 @@ func Test_ParseStructWithEscapedValues(t *testing.T) {
 		"unexpected requiredIf tag")
 	testza.AssertEqual(t, fields[6].FirstTag(), Tag{Key: "notContainsRegex", Value: "^test=value$"},
 		"unexpected notContainsRegex style tag")
+}
+
+func Test_ParseStructWithCustomSeparatorsAndEscapes(t *testing.T) {
+	type testStruct struct {
+		Value string `testtag:"replace@old\\#value#requiredIf@Type\\@admin"`
+	}
+
+	tagSettings := NewTagSettings(
+		"testtag",
+		"#",
+		"@",
+		nil,
+		false,
+		NewKey("replace", false, false, nil),
+		NewKey("requiredIf", false, false, nil),
+	)
+	tagSettings.WithEscapeCharacter(testEscapeCharacter)
+
+	fields, err := tagSettings.ParseStruct(&testStruct{})
+	testza.AssertNoError(t, err, "unexpected error")
+	testza.AssertLen(t, fields, 1, "unexpected fields len")
+	testza.AssertEqual(t, fields[0].Tags, []Tag{
+		{Key: "replace", Value: "old#value"},
+		{Key: "requiredIf", Value: "Type@admin"},
+	}, "unexpected parsed tags")
 }

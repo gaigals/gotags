@@ -22,18 +22,40 @@ import (
 	"github.com/gaigals/gotags"
 )
 
-var settings = gotags.NewSettings("validator").
-	AddKeys(
-		gotags.NewKey("required", true, false, nil),
-		gotags.NewKey("gt", false, false, nil),
-		gotags.NewKey("lt", false, false, nil),
-		gotags.NewKey("eq", false, false, nil),
-	)
+const (
+	tagKeyRequired = "required"
+	tagKeyEquals   = "eq"
+	tagKeyGT       = "gt"
+	tagKeyLT       = "lt"
+)
+
+var (
+	keyRequired = gotags.NewKey(tagKeyRequired, true, false, nil)
+	keyEquals   = gotags.NewKey(tagKeyEquals, false, false, nil)
+	keyGT       = gotags.NewKey(tagKeyGT, false, false, nil)
+	keyLT       = gotags.NewKey(tagKeyLT, false, false, nil)
+)
+
+// Default separator (;), default equals (:).
+var settings = gotags.NewTagSettingsDefault(
+	"validator",
+	tagProcessor, // Optional - can be nil.
+	keyRequired,
+	keyEquals,
+	keyGT,
+	keyLT,
+)
 
 type User struct {
 	Name    string `validator:"required"`
 	Age     uint   `validator:"gt:10;lt:130"`
 	Country string `validator:"eq:Latvia"`
+}
+
+func tagProcessor(field gotags.Field) error {
+	// Optional: runs after parsing and validation.
+	// Use it for extra checks, transforms, or side effects.
+	return nil
 }
 
 func main() {
@@ -75,7 +97,6 @@ gotags.NewSettings("validator")
 gotags.NewSettings("validator").WithEscapeCharacter('\\')
 gotags.NewTagSettingsDefault("validator", nil, keys...)
 gotags.NewTagSettings("validator", ",", "=", nil, false, keys...)
-gotags.NewTagFromStringWithEscape("min:2", ":", '\\')
 ```
 
 - `WithProcessor(fn)` runs after validation.
@@ -112,10 +133,23 @@ type Item struct {
 // Tag{Key: "rawValue", Value: ""}
 ```
 
+## Direct Tag Parsing
+
+```go
+tag, err := gotags.NewTagFromString("min:2", ":")
+
+escapedTag, err := gotags.NewTagFromStringWithEscape(
+	`replace=old\,value|new\|value`,
+	"=",
+	'\\',
+)
+```
+
 ## Escaping
 
 Escaping is off by default.\
 Enable it per `TagSettings` only when values need parser syntax chars.
+It also works with custom separators and custom equals chars.
 
 ```go
 var validatorSettings = gotags.NewSettings("validator").
@@ -124,12 +158,6 @@ var validatorSettings = gotags.NewSettings("validator").
 var gotagsSettings = gotags.NewSettings("gotags").
 	WithCustomSeparators(",", "=").
 	WithEscapeCharacter('\\')
-
-tag, err := gotags.NewTagFromStringWithEscape(
-	`replace=old\,value|new\|value`,
-	"=",
-	'\\',
-)
 
 type Rules struct {
 	Regex      string `validator:"regex:^foo\,bar$"`
